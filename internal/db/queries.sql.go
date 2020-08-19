@@ -24,16 +24,14 @@ func (q *Queries) CreateRawCert(ctx context.Context, arg CreateRawCertParams) er
 }
 
 const deleteDeviceCacheNode = `-- name: DeleteDeviceCacheNode :exec
-
 DELETE FROM device_cache WHERE device_id = $1 AND payload_id = $2
 `
 
 type DeleteDeviceCacheNodeParams struct {
-	DeviceID  int32 `json:"device_id"`
-	PayloadID int32 `json:"payload_id"`
+	DeviceID  int32         `json:"device_id"`
+	PayloadID sql.NullInt32 `json:"payload_id"`
 }
 
-// TODO: cache_id
 func (q *Queries) DeleteDeviceCacheNode(ctx context.Context, arg DeleteDeviceCacheNodeParams) error {
 	_, err := q.exec(ctx, q.deleteDeviceCacheNodeStmt, deleteDeviceCacheNode, arg.DeviceID, arg.PayloadID)
 	return err
@@ -50,6 +48,15 @@ type DeviceCheckinStatusParams struct {
 
 func (q *Queries) DeviceCheckinStatus(ctx context.Context, arg DeviceCheckinStatusParams) error {
 	_, err := q.exec(ctx, q.deviceCheckinStatusStmt, deviceCheckinStatus, arg.ID, arg.LastseenStatus)
+	return err
+}
+
+const deviceUserUnenrollment = `-- name: DeviceUserUnenrollment :exec
+UPDATE devices SET state='user_unenrolled', enrollment_type='Unenrolled', azure_did='', nodecache_version='', lastseen=to_timestamp(CAST(0 as bigint)/1000), lastseen_status=0, enrolled_at=to_timestamp(CAST(0 as bigint)/1000), enrolled_by=NULL WHERE id = $1
+`
+
+func (q *Queries) DeviceUserUnenrollment(ctx context.Context, id int32) error {
+	_, err := q.exec(ctx, q.deviceUserUnenrollmentStmt, deviceUserUnenrollment, id)
 	return err
 }
 
@@ -254,9 +261,11 @@ func (q *Queries) GetPoliciesPayloads(ctx context.Context, policyID sql.NullInt3
 }
 
 const getPolicy = `-- name: GetPolicy :one
+
 SELECT id, name, description, priority FROM policies WHERE id = $1 LIMIT 1
 `
 
+// TODO: Update or Replace
 func (q *Queries) GetPolicy(ctx context.Context, id int32) (Policy, error) {
 	row := q.queryRow(ctx, q.getPolicyStmt, getPolicy, id)
 	var i Policy
@@ -319,9 +328,9 @@ func (q *Queries) NewAzureADUser(ctx context.Context, arg NewAzureADUserParams) 
 	return err
 }
 
-const newDevice = `-- name: NewDevice :exec
+const newDevice = `-- name: NewDevice :one
 
-INSERT INTO devices(udid, state, enrollment_type, name, serial_number, operating_system, azure_did, enrolled_by) VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO devices(udid, state, enrollment_type, name, serial_number, operating_system, azure_did, enrolled_by) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
 `
 
 type NewDeviceParams struct {
@@ -332,12 +341,12 @@ type NewDeviceParams struct {
 	SerialNumber    string         `json:"serial_number"`
 	OperatingSystem string         `json:"operating_system"`
 	AzureDid        string         `json:"azure_did"`
-	EnrolledBy      string         `json:"enrolled_by"`
+	EnrolledBy      sql.NullString `json:"enrolled_by"`
 }
 
 // TODO: Insert or Update
-func (q *Queries) NewDevice(ctx context.Context, arg NewDeviceParams) error {
-	_, err := q.exec(ctx, q.newDeviceStmt, newDevice,
+func (q *Queries) NewDevice(ctx context.Context, arg NewDeviceParams) (int32, error) {
+	row := q.queryRow(ctx, q.newDeviceStmt, newDevice,
 		arg.Udid,
 		arg.State,
 		arg.EnrollmentType,
@@ -347,21 +356,25 @@ func (q *Queries) NewDevice(ctx context.Context, arg NewDeviceParams) error {
 		arg.AzureDid,
 		arg.EnrolledBy,
 	)
-	return err
+	var id int32
+	err := row.Scan(&id)
+	return id, err
 }
 
-const newDeviceCacheNode = `-- name: NewDeviceCacheNode :exec
-INSERT INTO device_cache(device_id, payload_id) VALUES ($1, $2)
+const newDeviceCacheNode = `-- name: NewDeviceCacheNode :one
+INSERT INTO device_cache(device_id, payload_id) VALUES ($1, $2) RETURNING cache_id
 `
 
 type NewDeviceCacheNodeParams struct {
-	DeviceID  int32 `json:"device_id"`
-	PayloadID int32 `json:"payload_id"`
+	DeviceID  int32         `json:"device_id"`
+	PayloadID sql.NullInt32 `json:"payload_id"`
 }
 
-func (q *Queries) NewDeviceCacheNode(ctx context.Context, arg NewDeviceCacheNodeParams) error {
-	_, err := q.exec(ctx, q.newDeviceCacheNodeStmt, newDeviceCacheNode, arg.DeviceID, arg.PayloadID)
-	return err
+func (q *Queries) NewDeviceCacheNode(ctx context.Context, arg NewDeviceCacheNodeParams) (int32, error) {
+	row := q.queryRow(ctx, q.newDeviceCacheNodeStmt, newDeviceCacheNode, arg.DeviceID, arg.PayloadID)
+	var cache_id int32
+	err := row.Scan(&cache_id)
+	return cache_id, err
 }
 
 const newDeviceReplacingExisting = `-- name: NewDeviceReplacingExisting :exec
@@ -376,7 +389,7 @@ type NewDeviceReplacingExistingParams struct {
 	SerialNumber    string         `json:"serial_number"`
 	OperatingSystem string         `json:"operating_system"`
 	AzureDid        string         `json:"azure_did"`
-	EnrolledBy      string         `json:"enrolled_by"`
+	EnrolledBy      sql.NullString `json:"enrolled_by"`
 }
 
 func (q *Queries) NewDeviceReplacingExisting(ctx context.Context, arg NewDeviceReplacingExistingParams) error {
@@ -393,12 +406,35 @@ func (q *Queries) NewDeviceReplacingExisting(ctx context.Context, arg NewDeviceR
 	return err
 }
 
-const newDeviceReplacingExistingReset = `-- name: NewDeviceReplacingExistingReset :exec
+const newDeviceReplacingExistingResetCache = `-- name: NewDeviceReplacingExistingResetCache :exec
 DELETE FROM device_cache WHERE device_id=$1
 `
 
-func (q *Queries) NewDeviceReplacingExistingReset(ctx context.Context, deviceID int32) error {
-	_, err := q.exec(ctx, q.newDeviceReplacingExistingResetStmt, newDeviceReplacingExistingReset, deviceID)
+func (q *Queries) NewDeviceReplacingExistingResetCache(ctx context.Context, deviceID int32) error {
+	_, err := q.exec(ctx, q.newDeviceReplacingExistingResetCacheStmt, newDeviceReplacingExistingResetCache, deviceID)
+	return err
+}
+
+const newDeviceReplacingExistingResetInventory = `-- name: NewDeviceReplacingExistingResetInventory :exec
+DELETE FROM device_cache WHERE device_id=$1
+`
+
+func (q *Queries) NewDeviceReplacingExistingResetInventory(ctx context.Context, deviceID int32) error {
+	_, err := q.exec(ctx, q.newDeviceReplacingExistingResetInventoryStmt, newDeviceReplacingExistingResetInventory, deviceID)
+	return err
+}
+
+const setDeviceState = `-- name: SetDeviceState :exec
+UPDATE devices SET state=$2 WHERE id = $1
+`
+
+type SetDeviceStateParams struct {
+	ID    int32       `json:"id"`
+	State DeviceState `json:"state"`
+}
+
+func (q *Queries) SetDeviceState(ctx context.Context, arg SetDeviceStateParams) error {
+	_, err := q.exec(ctx, q.setDeviceStateStmt, setDeviceState, arg.ID, arg.State)
 	return err
 }
 
@@ -418,4 +454,25 @@ func (q *Queries) Settings(ctx context.Context) (Setting, error) {
 		&i.DisableEnrollment,
 	)
 	return i, err
+}
+
+const updateDeviceInventoryNode = `-- name: UpdateDeviceInventoryNode :exec
+INSERT INTO device_inventory(device_id, uri, format, value) VALUES ($1, $2, $3, $4)
+`
+
+type UpdateDeviceInventoryNodeParams struct {
+	DeviceID int32  `json:"device_id"`
+	Uri      string `json:"uri"`
+	Format   string `json:"format"`
+	Value    string `json:"value"`
+}
+
+func (q *Queries) UpdateDeviceInventoryNode(ctx context.Context, arg UpdateDeviceInventoryNodeParams) error {
+	_, err := q.exec(ctx, q.updateDeviceInventoryNodeStmt, updateDeviceInventoryNode,
+		arg.DeviceID,
+		arg.Uri,
+		arg.Format,
+		arg.Value,
+	)
+	return err
 }

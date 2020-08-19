@@ -10,7 +10,7 @@ type Fault struct {
 	Detail  FaultDeviceEnrollmentServiceError `xml:"http://schemas.microsoft.com/windows/pki/2009/01/enrollment s:Detail>DeviceEnrollmentServiceError"`
 }
 
-// FaultCode contains the errors causer (Sender or Reciever) and the error code
+// FaultCode contains the errors causer (Sender or Receiver) and the error code
 type FaultCode struct {
 	Value   string `xml:"s:Value"`
 	Subcode string `xml:"s:Subcode>s:Value"`

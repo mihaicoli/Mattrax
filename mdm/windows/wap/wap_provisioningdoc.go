@@ -16,7 +16,7 @@ type WapCharacteristic struct {
 	Characteristics []WapCharacteristic `xml:"characteristic,omitempty"`
 }
 
-// WapParameter is a management client paramter (setting) that is set on a characteristic
+// WapParameter is a management client parameter (setting) that is set on a characteristic
 type WapParameter struct {
 	XMLName  xml.Name `xml:"parm"`
 	Name     string   `xml:"name,attr,omitempty"`

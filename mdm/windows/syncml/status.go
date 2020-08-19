@@ -7,4 +7,6 @@ const (
 	StatusCommandFailed = 500
 	// StatusUnauthorized - Invalid credentials. The requested command failed because the requestor must provide proper authentication. CSPs do not usually generate this error.
 	StatusUnauthorized = 401
+	// StatusForbidden - Forbidden. The requested command failed, but the recipient understood the requested command.
+	StatusForbidden = 403
 )

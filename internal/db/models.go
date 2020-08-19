@@ -32,8 +32,9 @@ func (e *DeviceState) Scan(src interface{}) error {
 type EnrollmentType string
 
 const (
-	EnrollmentTypeUser   EnrollmentType = "User"
-	EnrollmentTypeDevice EnrollmentType = "Device"
+	EnrollmentTypeUnenrolled EnrollmentType = "Unenrolled"
+	EnrollmentTypeUser       EnrollmentType = "User"
+	EnrollmentTypeDevice     EnrollmentType = "Device"
 )
 
 func (e *EnrollmentType) Scan(src interface{}) error {
@@ -68,13 +69,22 @@ type Device struct {
 	Lastseen         time.Time      `json:"lastseen"`
 	LastseenStatus   int32          `json:"lastseen_status"`
 	EnrolledAt       time.Time      `json:"enrolled_at"`
-	EnrolledBy       string         `json:"enrolled_by"`
+	EnrolledBy       sql.NullString `json:"enrolled_by"`
 }
 
 type DeviceCache struct {
-	DeviceID  int32 `json:"device_id"`
-	PayloadID int32 `json:"payload_id"`
-	CacheID   int32 `json:"cache_id"`
+	DeviceID    int32         `json:"device_id"`
+	PayloadID   sql.NullInt32 `json:"payload_id"`
+	InventoryID sql.NullInt32 `json:"inventory_id"`
+	CacheID     int32         `json:"cache_id"`
+}
+
+type DeviceInventory struct {
+	ID       int32  `json:"id"`
+	DeviceID int32  `json:"device_id"`
+	Uri      string `json:"uri"`
+	Format   string `json:"format"`
+	Value    string `json:"value"`
 }
 
 type Group struct {

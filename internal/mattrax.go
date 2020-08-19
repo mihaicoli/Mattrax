@@ -44,13 +44,3 @@ func (Arguments) Description() string {
 func (Arguments) Version() string {
 	return "Version: " + Version
 }
-
-// TEMP: Deprecated: Move to datastore or types package
-// Tenant contains information about the users of the Mattrax installation
-type Tenant struct {
-	Logo           string `json:"logo"`
-	Name           string `json:"name"`
-	SupportEmail   string `json:"support_email"`
-	SupportPhone   string `json:"support_phone"`
-	SupportWebsite string `json:"support_website"`
-}

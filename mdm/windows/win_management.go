@@ -2,7 +2,10 @@ package windows
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	mattrax "github.com/mattrax/Mattrax/internal"
 	"github.com/mattrax/Mattrax/internal/db"
@@ -21,7 +24,7 @@ func Manage(srv *mattrax.Server) http.HandlerFunc {
 
 		// TODO: Certificate Authentication Not Working Correctly So Has Been Disabled
 		// if len(r.TLS.PeerCertificates) == 0 {
-		// 	log.Debug().Str("protocol_udid", cmd.Header.SourceURI).Msg("Invalid device authenitcation missing TLS authentication certificate")
+		// 	log.Debug().Str("protocol_udid", cmd.Header.SourceURI).Msg("Invalid device authentication missing TLS authentication certificate")
 		// 	var res = syncml.NewResponse(cmd)
 		// 	res.Status(syncml.StatusUnauthorized)
 		// 	res.Respond(w)
@@ -60,7 +63,85 @@ func Manage(srv *mattrax.Server) http.HandlerFunc {
 	}
 }
 
-func ManagementHandler(ctx context.Context, srv *mattrax.Server, cmd syncml.Envelop, res syncml.Response, device db.Device) {
+// ManagementHandler handles deploying configuration and handling its response from the device
+func ManagementHandler(ctx context.Context, srv *mattrax.Server, cmd syncml.Message, res syncml.Response, device db.Device) {
+	if device.State == db.DeviceStateDeploying {
+		if err := srv.DB.SetDeviceState(ctx, db.SetDeviceStateParams{
+			ID:    device.ID,
+			State: db.DeviceStateManaged,
+		}); err != nil {
+			log.Error().Err(err).Msg("Error retrieving managed device")
+			res.SetStatus(syncml.StatusCommandFailed)
+			return
+		}
+	} else if device.State != db.DeviceStateManaged && device.State != db.DeviceStateMissing {
+		log.Error().Int32("id", device.ID).Str("state", string(device.State)).Msg("Device is unable to be managed due to unsupported state")
+		res.SetStatus(syncml.StatusForbidden)
+		return
+	}
+
+	// TODO: Make this look nicer
+	for _, command := range cmd.Body.Commands {
+		var final bool
+		switch command.XMLName.Local {
+		case "Alert":
+			if command.Data == "1201" {
+				continue
+			} else if command.Data == "1224" {
+				// TODO: ADD login status
+				if command.Source != nil && command.Source.URI != "" && command.Meta != nil && command.Meta.Type == "come.microsoft.mdm.win32csp_install" {
+					fmt.Println("MSI Install Status", command.Meta.Format, command.Meta.Mark, command.Data)
+					// TODO: Handle This
+				}
+				// TODO: MBES Apps
+				continue
+			} else if command.Data == "1226" {
+				// TODO: Check for body element
+				if command.Body[0].Meta.Type == "com.microsoft:mdm.unenrollment.userrequest" {
+					if err := srv.DB.DeviceUserUnenrollment(ctx, device.ID); err != nil {
+						log.Error().Int32("id", device.ID).Err(err).Msg("Device is unable to be updated during unenrollment. This request will NEVER be sent again from the device!")
+						res.SetStatus(syncml.StatusCommandFailed)
+						return
+					}
+					log.Info().Int32("id", device.ID).Str("trigger", "user_enroll").Msg("Device unenrolled")
+				}
+				// TODO: ADD login status
+				continue
+			} else {
+				fmt.Println("Unkown Alert Type:", command.Data)
+			}
+			break
+		case "Results":
+			fmt.Println(command)
+			for _, command := range command.Body {
+				if err := srv.DB.UpdateDeviceInventoryNode(ctx, db.UpdateDeviceInventoryNodeParams{
+					DeviceID: device.ID,
+					Uri:      command.Source.URI,
+					Format:   command.Meta.Format,
+					Value:    command.Data,
+				}); err != nil {
+					log.Error().Int32("id", device.ID).Str("uri", command.Source.URI).Err(err).Msg("Unable to update device inventory node")
+					res.SetStatus(syncml.StatusCommandFailed)
+					return
+				}
+			}
+		case "Final":
+			final = true
+			break
+		default:
+			fmt.Println("Unsupported Command:", command.XMLName.Local)
+			// 	UnsupportedCommand(command, state)
+		}
+		if final == true {
+			break
+		}
+	}
+
+	// TODO: NodeCache global version check like CSP defines server should do
+
+	// TODO: Work out data that the inventory needs about the device then ask for it and NodeCache!
+	// TODO: This includes DM CSP Versions
+
 	// TODO: Parse Request Data and Store in Inventory + Detect and handle User Unenroll + Add/Replace switch
 
 	payloadsAwaitingDeploy, err := srv.DB.GetDevicesPayloadsAwaitingDeployment(ctx, device.ID) // TODO: Replace SQL type because its a required arg
@@ -81,16 +162,18 @@ func ManagementHandler(ctx context.Context, srv *mattrax.Server, cmd syncml.Enve
 			// r.SetRaw("Add", "./Vendor/MSFT/NodeCache/MattraxMDM/Nodes/"+node+"/ExpectedValue", "", "", payload.Value)
 		}
 
-		if err := srv.DB.NewDeviceCacheNode(ctx, db.NewDeviceCacheNodeParams{
+		var nodecache_node int32
+		if nodecache_node, err = srv.DB.NewDeviceCacheNode(ctx, db.NewDeviceCacheNodeParams{
 			DeviceID:  device.ID,
-			PayloadID: payload.ID,
-			// CacheID:   , // TODO: Nodecache location
+			PayloadID: sql.NullInt32{payload.ID, true},
 		}); err != nil {
 			log.Error().Err(err).Msg("Error updating device cache node")
 			res.SetStatus(syncml.StatusCommandFailed)
 			return
 		}
-		// TODO: NodeCache + Atomics
+
+		fmt.Println("NodeCache Destined" + strconv.Itoa(int(nodecache_node))) // TODO: NodeCache + Use Atomics for it
+		// TODO: Method for checking if nodecache was set/if it successed?
 	}
 
 	detachedPayloads, err := srv.DB.GetDevicesDetachedPayloads(ctx, device.ID)
@@ -104,7 +187,7 @@ func ManagementHandler(ctx context.Context, srv *mattrax.Server, cmd syncml.Enve
 
 		if err := srv.DB.DeleteDeviceCacheNode(ctx, db.DeleteDeviceCacheNodeParams{
 			DeviceID:  device.ID,
-			PayloadID: payload.ID,
+			PayloadID: sql.NullInt32{payload.ID, true},
 		}); err != nil {
 			log.Error().Err(err).Msg("Error updating device cache node")
 			res.SetStatus(syncml.StatusCommandFailed)

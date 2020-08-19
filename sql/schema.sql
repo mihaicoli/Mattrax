@@ -7,7 +7,7 @@ CREATE TABLE users (
 );
 
 CREATE TYPE device_state AS ENUM ('deploying', 'managed', 'user_unenrolled', 'missing');
-CREATE TYPE enrollment_type AS ENUM ('User', 'Device');
+CREATE TYPE enrollment_type AS ENUM ('Unenrolled', 'User', 'Device');
 
 CREATE TABLE devices (
     id SERIAL PRIMARY KEY,
@@ -20,10 +20,19 @@ CREATE TABLE devices (
     operating_system TEXT NOT NULL,
     azure_did TEXT UNIQUE DEFAULT '' NOT NULL,
     nodecache_version TEXT DEFAULT '' NOT NULL,
-    lastseen TIME WITH TIME ZONE DEFAULT 'NOW()' NOT NULL,
+    lastseen TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     lastseen_status INTEGER DEFAULT 0 NOT NULL,
-    enrolled_at TIME WITH TIME ZONE DEFAULT 'NOW()' NOT NULL,
-    enrolled_by TEXT REFERENCES users(upn) NOT NULL
+    enrolled_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    enrolled_by TEXT REFERENCES users(upn)
+);
+
+CREATE TABLE device_inventory (
+	id SERIAL PRIMARY KEY,
+    device_id INTEGER REFERENCES devices(id) NOT NULL,
+    uri TEXT NOT NULL,
+    format TEXT DEFAULT '' NOT NULL,
+    value TEXT DEFAULT '' NOT NULL,
+    UNIQUE (device_id, uri)
 );
 
 CREATE TABLE policies (
@@ -46,10 +55,11 @@ CREATE TABLE policies_payload (
 
 CREATE TABLE device_cache (
     device_id INTEGER REFERENCES devices(id) NOT NULL,
-    payload_id INTEGER REFERENCES policies_payload(id) NOT NULL,
+    payload_id INTEGER REFERENCES policies_payload(id),
+    inventory_id INTEGER REFERENCES device_inventory(id),
     cache_id SERIAL NOT NULL,
-    PRIMARY KEY (device_id, payload_id),
-    UNIQUE (device_id, cache_id)
+    PRIMARY KEY (device_id, cache_id),
+    CONSTRAINT chk_reference check ((payload_id is not null and inventory_id is null) or (payload_id is null and inventory_id is not null))
 );
 
 CREATE TABLE groups (

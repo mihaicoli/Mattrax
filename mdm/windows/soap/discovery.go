@@ -31,7 +31,7 @@ type AuthPolicies struct {
 	AuthPolicies []string `xml:"AuthPolicy"`
 }
 
-// IsAuthPolicySupported checks the AuthPolicies array for the existant of an AuthPolicy
+// IsAuthPolicySupported checks the AuthPolicies array for the existent of an AuthPolicy
 func (authPolicies AuthPolicies) IsAuthPolicySupported(authPolicyStr string) bool {
 	for _, ap := range authPolicies.AuthPolicies {
 		if ap == authPolicyStr {

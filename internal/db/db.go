@@ -31,6 +31,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deviceCheckinStatusStmt, err = db.PrepareContext(ctx, deviceCheckinStatus); err != nil {
 		return nil, fmt.Errorf("error preparing query DeviceCheckinStatus: %w", err)
 	}
+	if q.deviceUserUnenrollmentStmt, err = db.PrepareContext(ctx, deviceUserUnenrollment); err != nil {
+		return nil, fmt.Errorf("error preparing query DeviceUserUnenrollment: %w", err)
+	}
 	if q.getDeviceStmt, err = db.PrepareContext(ctx, getDevice); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDevice: %w", err)
 	}
@@ -70,11 +73,20 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.newDeviceReplacingExistingStmt, err = db.PrepareContext(ctx, newDeviceReplacingExisting); err != nil {
 		return nil, fmt.Errorf("error preparing query NewDeviceReplacingExisting: %w", err)
 	}
-	if q.newDeviceReplacingExistingResetStmt, err = db.PrepareContext(ctx, newDeviceReplacingExistingReset); err != nil {
-		return nil, fmt.Errorf("error preparing query NewDeviceReplacingExistingReset: %w", err)
+	if q.newDeviceReplacingExistingResetCacheStmt, err = db.PrepareContext(ctx, newDeviceReplacingExistingResetCache); err != nil {
+		return nil, fmt.Errorf("error preparing query NewDeviceReplacingExistingResetCache: %w", err)
+	}
+	if q.newDeviceReplacingExistingResetInventoryStmt, err = db.PrepareContext(ctx, newDeviceReplacingExistingResetInventory); err != nil {
+		return nil, fmt.Errorf("error preparing query NewDeviceReplacingExistingResetInventory: %w", err)
+	}
+	if q.setDeviceStateStmt, err = db.PrepareContext(ctx, setDeviceState); err != nil {
+		return nil, fmt.Errorf("error preparing query SetDeviceState: %w", err)
 	}
 	if q.settingsStmt, err = db.PrepareContext(ctx, settings); err != nil {
 		return nil, fmt.Errorf("error preparing query Settings: %w", err)
+	}
+	if q.updateDeviceInventoryNodeStmt, err = db.PrepareContext(ctx, updateDeviceInventoryNode); err != nil {
+		return nil, fmt.Errorf("error preparing query UpdateDeviceInventoryNode: %w", err)
 	}
 	return &q, nil
 }
@@ -94,6 +106,11 @@ func (q *Queries) Close() error {
 	if q.deviceCheckinStatusStmt != nil {
 		if cerr := q.deviceCheckinStatusStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing deviceCheckinStatusStmt: %w", cerr)
+		}
+	}
+	if q.deviceUserUnenrollmentStmt != nil {
+		if cerr := q.deviceUserUnenrollmentStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing deviceUserUnenrollmentStmt: %w", cerr)
 		}
 	}
 	if q.getDeviceStmt != nil {
@@ -161,14 +178,29 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing newDeviceReplacingExistingStmt: %w", cerr)
 		}
 	}
-	if q.newDeviceReplacingExistingResetStmt != nil {
-		if cerr := q.newDeviceReplacingExistingResetStmt.Close(); cerr != nil {
-			err = fmt.Errorf("error closing newDeviceReplacingExistingResetStmt: %w", cerr)
+	if q.newDeviceReplacingExistingResetCacheStmt != nil {
+		if cerr := q.newDeviceReplacingExistingResetCacheStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing newDeviceReplacingExistingResetCacheStmt: %w", cerr)
+		}
+	}
+	if q.newDeviceReplacingExistingResetInventoryStmt != nil {
+		if cerr := q.newDeviceReplacingExistingResetInventoryStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing newDeviceReplacingExistingResetInventoryStmt: %w", cerr)
+		}
+	}
+	if q.setDeviceStateStmt != nil {
+		if cerr := q.setDeviceStateStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing setDeviceStateStmt: %w", cerr)
 		}
 	}
 	if q.settingsStmt != nil {
 		if cerr := q.settingsStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing settingsStmt: %w", cerr)
+		}
+	}
+	if q.updateDeviceInventoryNodeStmt != nil {
+		if cerr := q.updateDeviceInventoryNodeStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing updateDeviceInventoryNodeStmt: %w", cerr)
 		}
 	}
 	return err
@@ -208,26 +240,30 @@ func (q *Queries) queryRow(ctx context.Context, stmt *sql.Stmt, query string, ar
 }
 
 type Queries struct {
-	db                                       DBTX
-	tx                                       *sql.Tx
-	createRawCertStmt                        *sql.Stmt
-	deleteDeviceCacheNodeStmt                *sql.Stmt
-	deviceCheckinStatusStmt                  *sql.Stmt
-	getDeviceStmt                            *sql.Stmt
-	getDeviceByUDIDStmt                      *sql.Stmt
-	getDevicesDetachedPayloadsStmt           *sql.Stmt
-	getDevicesPayloadsStmt                   *sql.Stmt
-	getDevicesPayloadsAwaitingDeploymentStmt *sql.Stmt
-	getPoliciesPayloadsStmt                  *sql.Stmt
-	getPolicyStmt                            *sql.Stmt
-	getRawCertStmt                           *sql.Stmt
-	getUserStmt                              *sql.Stmt
-	newAzureADUserStmt                       *sql.Stmt
-	newDeviceStmt                            *sql.Stmt
-	newDeviceCacheNodeStmt                   *sql.Stmt
-	newDeviceReplacingExistingStmt           *sql.Stmt
-	newDeviceReplacingExistingResetStmt      *sql.Stmt
-	settingsStmt                             *sql.Stmt
+	db                                           DBTX
+	tx                                           *sql.Tx
+	createRawCertStmt                            *sql.Stmt
+	deleteDeviceCacheNodeStmt                    *sql.Stmt
+	deviceCheckinStatusStmt                      *sql.Stmt
+	deviceUserUnenrollmentStmt                   *sql.Stmt
+	getDeviceStmt                                *sql.Stmt
+	getDeviceByUDIDStmt                          *sql.Stmt
+	getDevicesDetachedPayloadsStmt               *sql.Stmt
+	getDevicesPayloadsStmt                       *sql.Stmt
+	getDevicesPayloadsAwaitingDeploymentStmt     *sql.Stmt
+	getPoliciesPayloadsStmt                      *sql.Stmt
+	getPolicyStmt                                *sql.Stmt
+	getRawCertStmt                               *sql.Stmt
+	getUserStmt                                  *sql.Stmt
+	newAzureADUserStmt                           *sql.Stmt
+	newDeviceStmt                                *sql.Stmt
+	newDeviceCacheNodeStmt                       *sql.Stmt
+	newDeviceReplacingExistingStmt               *sql.Stmt
+	newDeviceReplacingExistingResetCacheStmt     *sql.Stmt
+	newDeviceReplacingExistingResetInventoryStmt *sql.Stmt
+	setDeviceStateStmt                           *sql.Stmt
+	settingsStmt                                 *sql.Stmt
+	updateDeviceInventoryNodeStmt                *sql.Stmt
 }
 
 func (q *Queries) WithTx(tx *sql.Tx) *Queries {
@@ -237,6 +273,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		createRawCertStmt:                        q.createRawCertStmt,
 		deleteDeviceCacheNodeStmt:                q.deleteDeviceCacheNodeStmt,
 		deviceCheckinStatusStmt:                  q.deviceCheckinStatusStmt,
+		deviceUserUnenrollmentStmt:               q.deviceUserUnenrollmentStmt,
 		getDeviceStmt:                            q.getDeviceStmt,
 		getDeviceByUDIDStmt:                      q.getDeviceByUDIDStmt,
 		getDevicesDetachedPayloadsStmt:           q.getDevicesDetachedPayloadsStmt,
@@ -250,7 +287,10 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		newDeviceStmt:                            q.newDeviceStmt,
 		newDeviceCacheNodeStmt:                   q.newDeviceCacheNodeStmt,
 		newDeviceReplacingExistingStmt:           q.newDeviceReplacingExistingStmt,
-		newDeviceReplacingExistingResetStmt:      q.newDeviceReplacingExistingResetStmt,
-		settingsStmt:                             q.settingsStmt,
+		newDeviceReplacingExistingResetCacheStmt: q.newDeviceReplacingExistingResetCacheStmt,
+		newDeviceReplacingExistingResetInventoryStmt: q.newDeviceReplacingExistingResetInventoryStmt,
+		setDeviceStateStmt:                           q.setDeviceStateStmt,
+		settingsStmt:                                 q.settingsStmt,
+		updateDeviceInventoryNodeStmt:                q.updateDeviceInventoryNodeStmt,
 	}
 }

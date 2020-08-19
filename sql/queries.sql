@@ -6,14 +6,23 @@ SELECT * FROM users WHERE upn = $1 LIMIT 1;
 -- name: NewAzureADUser :exec
 INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3); -- TODO: Insert or Update
 
--- name: NewDevice :exec
-INSERT INTO devices(udid, state, enrollment_type, name, serial_number, operating_system, azure_did, enrolled_by) VALUES($1, $2, $3, $4, $5, $6, $7, $8);
+-- name: NewDevice :one
+INSERT INTO devices(udid, state, enrollment_type, name, serial_number, operating_system, azure_did, enrolled_by) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id;
 
 -- name: NewDeviceReplacingExisting :exec
 UPDATE devices SET state=$2, enrollment_type=$3, name=$4, serial_number=$5, operating_system=$6, azure_did=$7, nodecache_version='', lastseen=NOW(), lastseen_status=0, enrolled_at=NOW(), enrolled_by=$8 WHERE udid = $1;
 
--- name: NewDeviceReplacingExistingReset :exec
+-- name: NewDeviceReplacingExistingResetCache :exec
 DELETE FROM device_cache WHERE device_id=$1;
+
+-- name: NewDeviceReplacingExistingResetInventory :exec
+DELETE FROM device_cache WHERE device_id=$1;
+
+-- name: SetDeviceState :exec
+UPDATE devices SET state=$2 WHERE id = $1;
+
+-- name: DeviceUserUnenrollment :exec
+UPDATE devices SET state='user_unenrolled', enrollment_type='Unenrolled', azure_did='', nodecache_version='', lastseen=to_timestamp(CAST(0 as bigint)/1000), lastseen_status=0, enrolled_at=to_timestamp(CAST(0 as bigint)/1000), enrolled_by=NULL WHERE id = $1;
 
 -- name: GetDevice :one
 SELECT * FROM devices WHERE id = $1 LIMIT 1;
@@ -33,11 +42,14 @@ SELECT id, uri, format, type, value, exec FROM group_devices INNER JOIN group_po
 -- name: GetDevicesDetachedPayloads :many
 SELECT id, uri, exec FROM device_cache INNER JOIN policies_payload ON policies_payload.id=device_cache.payload_id WHERE device_cache.device_id = $1 AND NOT EXISTS (SELECT policies_payload.* FROM group_devices INNER JOIN group_policies ON group_policies.group_id=group_devices.group_id INNER JOIN policies_payload ON policies_payload.policy_id=group_policies.policy_id WHERE group_devices.device_id = device_cache.device_id);
 
--- name: NewDeviceCacheNode :exec
-INSERT INTO device_cache(device_id, payload_id) VALUES ($1, $2); -- TODO: cache_id
+-- name: NewDeviceCacheNode :one
+INSERT INTO device_cache(device_id, payload_id) VALUES ($1, $2) RETURNING cache_id;
 
 -- name: DeleteDeviceCacheNode :exec
 DELETE FROM device_cache WHERE device_id = $1 AND payload_id = $2;
+
+-- name: UpdateDeviceInventoryNode :exec
+INSERT INTO device_inventory(device_id, uri, format, value) VALUES ($1, $2, $3, $4); -- TODO: Update or Replace
 
 -- name: GetPolicy :one
 SELECT * FROM policies WHERE id = $1 LIMIT 1;

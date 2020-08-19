@@ -1,4 +1,6 @@
 # Mattrax
+[![Go Report Card](https://goreportcard.com/badge/github.com/mattrax/Mattrax)](https://goreportcard.com/report/github.com/mattrax/Mattrax)
+
 Open Source MDM (Mobile Device Management) System.
 
 **Currently only Windows MDM** is being supported but in the future I would like to support other MDM protocols such as Apple (IOS & MacOS), Android and ChromeOS.

@@ -159,7 +159,7 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			settings.TenantName = "Mattrax"
 		}
 
-		identityCert, identityKey, err = srv.Cert.Create(context.Background(), "identity", false, pkix.Name{
+		_, _, err = srv.Cert.Create(context.Background(), "identity", false, pkix.Name{
 			CommonName: settings.TenantName + " Identity",
 		})
 		if err != nil {
@@ -248,12 +248,12 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 
 		device := db.NewDeviceParams{
 			Udid:            cmd.GetAdditionalContextItem("DeviceID"),
-			State:           db.DeviceStateManaged,
+			State:           db.DeviceStateDeploying,
 			Name:            cmd.GetAdditionalContextItem("DeviceName"),
 			SerialNumber:    cmd.GetAdditionalContextItem("HWDevID"),
 			OperatingSystem: cmd.GetAdditionalContextItem("OSVersion"),
 			AzureDid:        authClaims.MicrosoftSpecificAuthClaims.DeviceID,
-			EnrolledBy:      authClaims.Subject,
+			EnrolledBy:      sql.NullString{authClaims.Subject, true},
 		}
 		if cmd.GetAdditionalContextItem("EnrollmentType") == "Device" {
 			device.EnrollmentType = db.EnrollmentTypeDevice
@@ -261,22 +261,30 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			device.EnrollmentType = db.EnrollmentTypeUser
 		}
 
+		var deviceID int32
 		if existingDevice.ID == 0 {
-			if err := srv.DB.NewDevice(r.Context(), device); err != nil {
+			if deviceID, err = srv.DB.NewDevice(r.Context(), device); err != nil {
 				log.Error().Err(err).Msg("error creating new device")
 				var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
 				soap.Respond(res, w)
 				return
 			}
 		} else {
+			deviceID = existingDevice.ID
 			if err := srv.DB.NewDeviceReplacingExisting(r.Context(), db.NewDeviceReplacingExistingParams(device)); err != nil {
 				log.Error().Err(err).Msg("error updating existing device as new device")
 				var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
 				soap.Respond(res, w)
 				return
 			}
-			if err := srv.DB.NewDeviceReplacingExistingReset(r.Context(), existingDevice.ID); err != nil {
-				log.Error().Err(err).Msg("error updating existing device as new device")
+			if err := srv.DB.NewDeviceReplacingExistingResetCache(r.Context(), existingDevice.ID); err != nil {
+				log.Error().Err(err).Msg("error resetting cache for device reenrollment")
+				var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
+				soap.Respond(res, w)
+				return
+			}
+			if err := srv.DB.NewDeviceReplacingExistingResetInventory(r.Context(), existingDevice.ID); err != nil {
+				log.Error().Err(err).Msg("error resetting inventory for device reenrollment")
 				var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
 				soap.Respond(res, w)
 				return
@@ -372,6 +380,16 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 				Value:    settings.TenantEmail,
 				DataType: "string",
 			})
+
+			var node = "./Vendor/MSFT/DMClient/Provider/MattraxMDM/HelpEmailAddress"
+			if err := srv.DB.UpdateDeviceInventoryNode(r.Context(), db.UpdateDeviceInventoryNodeParams{
+				DeviceID: deviceID,
+				Uri:      node,
+				Format:   "chr",
+				Value:    settings.TenantEmail,
+			}); err != nil {
+				log.Error().Err(err).Str("node", node).Msg("Error updating device inventory nod")
+			}
 		}
 
 		if settings.TenantWebsite != "" {
@@ -380,6 +398,16 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 				Value:    settings.TenantWebsite,
 				DataType: "string",
 			})
+
+			var node = "./Vendor/MSFT/DMClient/Provider/MattraxMDM/HelpWebsite"
+			if err := srv.DB.UpdateDeviceInventoryNode(r.Context(), db.UpdateDeviceInventoryNodeParams{
+				DeviceID: deviceID,
+				Uri:      node,
+				Format:   "chr",
+				Value:    settings.TenantWebsite,
+			}); err != nil {
+				log.Error().Err(err).Str("node", node).Msg("Error updating device inventory node")
+			}
 		}
 
 		if settings.TenantPhone != "" {
@@ -388,6 +416,26 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 				Value:    settings.TenantPhone,
 				DataType: "string",
 			})
+
+			var node = "./Vendor/MSFT/DMClient/Provider/MattraxMDM/HelpPhoneNumber"
+			if err := srv.DB.UpdateDeviceInventoryNode(r.Context(), db.UpdateDeviceInventoryNodeParams{
+				DeviceID: deviceID,
+				Uri:      node,
+				Format:   "chr",
+				Value:    settings.TenantPhone,
+			}); err != nil {
+				log.Error().Err(err).Str("node", node).Msg("Error updating device inventory node")
+			}
+		}
+
+		var node = "./Vendor/MSFT/DMClient/Provider/MattraxMDM/ManagementServiceAddress"
+		if err := srv.DB.UpdateDeviceInventoryNode(r.Context(), db.UpdateDeviceInventoryNodeParams{
+			DeviceID: deviceID,
+			Uri:      node,
+			Format:   "chr",
+			Value:    managementServiceURL,
+		}); err != nil {
+			log.Error().Err(err).Str("node", node).Msg("Error updating device inventory node")
 		}
 
 		var wapProvisioningDoc = wap.WapProvisioningDoc{

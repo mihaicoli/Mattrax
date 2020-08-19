@@ -22,7 +22,7 @@ type RsaPublicKey struct {
 	E int
 }
 
-// CertificateService handles certificate generation and parsing. It uses a certificate store to persist the certificates and/or keys
+// Service handles certificate generation and parsing. It uses the DB to persist the certificates and/or keys
 type Service struct {
 	*db.Queries
 }
