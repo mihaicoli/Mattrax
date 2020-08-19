@@ -3,11 +3,10 @@ package soap
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/mattrax/Mattrax/pkg"
 	"github.com/mattrax/xml"
-	"github.com/rs/zerolog/log"
 )
 
 // MaxRequestBodySize is the maximum amount of data that is allowed in a single request
@@ -73,15 +72,19 @@ type ResponseEnvelopeBody struct {
 // Read safely decodes a SOAP request from the HTTP body into a struct
 func Read(v interface{}, r *http.Request, w http.ResponseWriter) bool {
 	if r.ContentLength > MaxRequestBodySize {
-		log.Debug().Int64("length", r.ContentLength).Int("max-length", MaxRequestBodySize).Msg("Request body larger than supported value")
+		if pkg.ErrorHandler != nil {
+			pkg.ErrorHandler(fmt.Sprintf("Request body of size '%d' is larger than the maximum supported size of '%d'", r.ContentLength, MaxRequestBodySize), nil)
+		}
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		return true
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodySize)
 	if err := xml.NewDecoder(r.Body).Decode(v); err != nil {
+		if pkg.ErrorHandler != nil {
+			pkg.ErrorHandler(fmt.Sprintf("Error decoding request of type '%T'", v), err)
+		}
 		w.WriteHeader(http.StatusBadRequest)
-		log.Error().Str("caller", fmt.Sprintf("%T", v)).Err(err).Msg("Error decoding request")
 		return true
 	}
 
@@ -92,7 +95,10 @@ func Read(v interface{}, r *http.Request, w http.ResponseWriter) bool {
 func Respond(v ResponseEnvelope, w http.ResponseWriter) {
 	body, err := xml.Marshal(v)
 	if err != nil {
-		log.Error().Str("caller", fmt.Sprintf("%T", v.Body.Body)).Err(err).Msg("error: marshalling soap body")
+		if pkg.ErrorHandler != nil {
+			pkg.ErrorHandler("Error marshaling syncml body", err)
+		}
+
 		if fmt.Sprintf("%T", v.Body.Body) != "SOAPFault" {
 			w.WriteHeader(http.StatusInternalServerError)
 			var res = NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
@@ -102,8 +108,10 @@ func Respond(v ResponseEnvelope, w http.ResponseWriter) {
 	}
 
 	w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
-	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.Header().Set("Content-Length", fmt.Sprintf("%v", len(body)))
 	if _, err := w.Write(body); err != nil {
-		log.Error().Str("caller", fmt.Sprintf("%T", v)).Err(err).Msg("error: writing body to client")
+		if pkg.ErrorHandler != nil {
+			pkg.ErrorHandler("Error writing body to client", err)
+		}
 	}
 }

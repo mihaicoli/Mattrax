@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/mattrax/Mattrax/pkg"
 	"github.com/mattrax/xml"
-	"github.com/rs/zerolog/log"
 )
 
 // Response is a SyncML response body. It has helpers to make generating responses easier
@@ -46,8 +46,10 @@ func (r Response) Respond(w http.ResponseWriter) {
 	r.res.Body.Final = "<Final />"
 	w.Header().Set("Content-Type", "application/vnd.syncml.dm+xml")
 	if err := xml.NewEncoder(w).Encode(r.res); err != nil {
+		if pkg.ErrorHandler != nil {
+			pkg.ErrorHandler("Error marshaling syncml body", err)
+		}
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Error().Err(err).Msg("Error marshaling syncml body")
 	}
 }
 

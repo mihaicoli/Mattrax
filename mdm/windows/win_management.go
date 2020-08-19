@@ -9,7 +9,7 @@ import (
 
 	mattrax "github.com/mattrax/Mattrax/internal"
 	"github.com/mattrax/Mattrax/internal/db"
-	"github.com/mattrax/Mattrax/mdm/windows/syncml"
+	"github.com/mattrax/Mattrax/pkg/syncml"
 	"github.com/rs/zerolog/log"
 )
 

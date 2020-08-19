@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	mattrax "github.com/mattrax/Mattrax/internal"
+	"github.com/mattrax/Mattrax/pkg"
+	"github.com/rs/zerolog/log"
 )
 
 // WinProtocolID is the ID used in database protocol column to represent this protocol
@@ -11,6 +13,11 @@ const WinProtocolID = 1
 
 // Mount initialise the MDM server
 func Mount(srv *mattrax.Server) {
+	// Error reporting for subpackage marshalling and unmarshalling of various MDM data formats
+	pkg.ErrorHandler = func(errDescription string, err error) {
+		log.Error().Err(err).Msg(errDescription)
+	}
+
 	// TODO: Replace with UI based Login Route
 	srv.Router.HandleFunc("/Login.svc", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=UTF-8")

@@ -22,8 +22,8 @@ import (
 	"github.com/lib/pq"
 	mattrax "github.com/mattrax/Mattrax/internal"
 	"github.com/mattrax/Mattrax/internal/db"
-	"github.com/mattrax/Mattrax/mdm/windows/soap"
-	"github.com/mattrax/Mattrax/mdm/windows/wap"
+	"github.com/mattrax/Mattrax/pkg/soap"
+	wap "github.com/mattrax/Mattrax/pkg/wap_provisioning_doc"
 	"github.com/mattrax/xml"
 	"github.com/rs/zerolog/log"
 )
