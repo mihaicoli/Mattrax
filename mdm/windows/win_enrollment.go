@@ -3,7 +3,6 @@ package windows
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"database/sql"
@@ -14,8 +13,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -198,6 +195,8 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
+		// TODO: Check user exists in DB and report specific error if not -> Or handle creation if its an AAD user
+
 		settings, err := srv.DB.Settings(r.Context())
 		if err != nil {
 			log.Error().Err(err).Msg("error retrieving settings")
@@ -221,7 +220,7 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 		}
 
 		if err != sql.ErrNoRows && existingDevice.State != db.DeviceStateUserUnenrolled {
-			log.Debug().Msg("Device already enrolled in Mattrax.")
+			log.Debug().Int32("id", existingDevice.ID).Msg("Device already enrolled in Mattrax.")
 			var res = soap.NewFault("s:Receiver", "s:Authorization", "DeviceCapReached", "This device is already enrolled into Mattrax. Please remove before enrolling again", "")
 			soap.Respond(res, w)
 			return
@@ -364,10 +363,26 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		var DMCLientProviderParameters []wap.WapParameter
+		var DMCLientProviderParameters = []wap.Parameter{
+			{
+				Name:     "EntDeviceName",
+				Value:    cmd.GetAdditionalContextItem("DeviceName"),
+				DataType: "string",
+			},
+			{
+				Name:     "EntDMID",
+				Value:    fmt.Sprintf("%d", deviceID),
+				DataType: "string",
+			},
+			{
+				Name:     "UPN",
+				Value:    authClaims.Subject,
+				DataType: "string",
+			},
+		}
 
 		if authClaims.MicrosoftSpecificAuthClaims.DeviceID != "" {
-			DMCLientProviderParameters = append(DMCLientProviderParameters, wap.WapParameter{
+			DMCLientProviderParameters = append(DMCLientProviderParameters, wap.Parameter{
 				Name:     "AADResourceID",
 				Value:    authClaims.MicrosoftSpecificAuthClaims.DeviceID,
 				DataType: "string",
@@ -375,13 +390,13 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 		}
 
 		if settings.TenantEmail != "" {
-			DMCLientProviderParameters = append(DMCLientProviderParameters, wap.WapParameter{
+			DMCLientProviderParameters = append(DMCLientProviderParameters, wap.Parameter{
 				Name:     "HelpEmailAddress",
 				Value:    settings.TenantEmail,
 				DataType: "string",
 			})
 
-			var node = "./Vendor/MSFT/DMClient/Provider/MattraxMDM/HelpEmailAddress"
+			var node = "./Vendor/MSFT/DMClient/Provider/" + ProviderID + "/HelpEmailAddress"
 			if err := srv.DB.UpdateDeviceInventoryNode(r.Context(), db.UpdateDeviceInventoryNodeParams{
 				DeviceID: deviceID,
 				Uri:      node,
@@ -393,13 +408,13 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 		}
 
 		if settings.TenantWebsite != "" {
-			DMCLientProviderParameters = append(DMCLientProviderParameters, wap.WapParameter{
+			DMCLientProviderParameters = append(DMCLientProviderParameters, wap.Parameter{
 				Name:     "HelpWebsite",
 				Value:    settings.TenantWebsite,
 				DataType: "string",
 			})
 
-			var node = "./Vendor/MSFT/DMClient/Provider/MattraxMDM/HelpWebsite"
+			var node = "./Vendor/MSFT/DMClient/Provider/" + ProviderID + "/HelpWebsite"
 			if err := srv.DB.UpdateDeviceInventoryNode(r.Context(), db.UpdateDeviceInventoryNodeParams{
 				DeviceID: deviceID,
 				Uri:      node,
@@ -411,13 +426,13 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 		}
 
 		if settings.TenantPhone != "" {
-			DMCLientProviderParameters = append(DMCLientProviderParameters, wap.WapParameter{
+			DMCLientProviderParameters = append(DMCLientProviderParameters, wap.Parameter{
 				Name:     "HelpPhoneNumber",
 				Value:    settings.TenantPhone,
 				DataType: "string",
 			})
 
-			var node = "./Vendor/MSFT/DMClient/Provider/MattraxMDM/HelpPhoneNumber"
+			var node = "./Vendor/MSFT/DMClient/Provider/" + ProviderID + "/HelpPhoneNumber"
 			if err := srv.DB.UpdateDeviceInventoryNode(r.Context(), db.UpdateDeviceInventoryNodeParams{
 				DeviceID: deviceID,
 				Uri:      node,
@@ -428,7 +443,7 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			}
 		}
 
-		var node = "./Vendor/MSFT/DMClient/Provider/MattraxMDM/ManagementServiceAddress"
+		var node = "./Vendor/MSFT/DMClient/Provider/" + ProviderID + "/ManagementServiceAddress"
 		if err := srv.DB.UpdateDeviceInventoryNode(r.Context(), db.UpdateDeviceInventoryNodeParams{
 			DeviceID: deviceID,
 			Uri:      node,
@@ -438,285 +453,27 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			log.Error().Err(err).Str("node", node).Msg("Error updating device inventory node")
 		}
 
-		var wapProvisioningDoc = wap.WapProvisioningDoc{
-			Version: "1.1",
-			Characteristic: []wap.WapCharacteristic{
-				{
-					Type: "CertificateStore",
-					Characteristics: []wap.WapCharacteristic{
-						{
-							Type: "Root",
-							Characteristics: []wap.WapCharacteristic{
-								{
-									Type: "System",
-									Characteristics: []wap.WapCharacteristic{
-										{
-											Type: strings.ToUpper(fmt.Sprintf("%x", sha1.Sum(identityCertificate.Raw))),
-											Params: []wap.WapParameter{
-												{
-													Name:  "EncodedCertificate",
-													Value: base64.StdEncoding.EncodeToString(identityCertificate.Raw),
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-						{
-							Type: "My",
-							Characteristics: []wap.WapCharacteristic{
-								{
-									Type: certStore,
-									Characteristics: []wap.WapCharacteristic{
-										{
-											Type: strings.ToUpper(fmt.Sprintf("%x", sha1.Sum(clientCertificateRaw))),
-											Params: []wap.WapParameter{
-												{
-													Name:  "EncodedCertificate",
-													Value: base64.StdEncoding.EncodeToString(clientCertificateRaw),
-												},
-											},
-										},
-										{
-											Type: "PrivateKeyContainer",
-											Params: []wap.WapParameter{
-												{
-													Name:  "KeySpec",
-													Value: "2",
-												},
-												{
-													Name:  "ContainerName",
-													Value: "ConfigMgrEnrollment",
-												},
-												{
-													Name:  "ProviderType",
-													Value: "1",
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-						{
-							Type: "My",
-							Characteristics: []wap.WapCharacteristic{
-								{
-									Type: "WSTEP",
-									Characteristics: []wap.WapCharacteristic{
-										{
-											Type: "Renew",
-											Params: []wap.WapParameter{
-												{
-													Name:     "ROBOSupport",
-													Value:    "true",
-													DataType: "boolean",
-												},
-												{
-													Name:     "RenewPeriod",
-													Value:    "41",
-													DataType: "integer",
-												},
-												{
-													Name:     "RetryInterval",
-													Value:    "7",
-													DataType: "integer",
-												},
-											},
-										},
-									},
-								},
-							},
-						},
+		var wapProvisioningDoc = wap.NewProvisioningDoc()
+		wapProvisioningDoc.NewCertStore(identityCertificate, certStore, clientCertificateRaw)
+		wapProvisioningDoc.NewW7Application(ProviderID, settings.TenantName, managementServiceURL, certStore, clientCertificate.Subject.String())
+		wapProvisioningDoc.NewDMClient(ProviderID, DMCLientProviderParameters, []wap.Characteristic{
+			wap.DefaultPollCharacteristic,
+			{
+				Type: "CustomEnrollmentCompletePage",
+				Params: []wap.Parameter{
+					{
+						Name:     "Title",
+						Value:    "Mattrax Enrollment Complete",
+						DataType: "string",
 					},
-				},
-				{
-					Type: "APPLICATION",
-					Params: []wap.WapParameter{
-						{
-							Name:  "APPID",
-							Value: "w7",
-						},
-						{
-							Name:  "PROVIDER-ID",
-							Value: "MattraxMDM",
-						},
-						{
-							Name:  "ADDR",
-							Value: managementServiceURL,
-						},
-						{
-							Name:  "NAME",
-							Value: settings.TenantName,
-						},
-						{
-							Name: "BACKCOMPATRETRYDISABLED",
-						},
-						{
-							Name:  "CONNRETRYFREQ",
-							Value: "6",
-						},
-						{
-							Name:  "DEFAULTENCODING",
-							Value: "application/vnd.syncml.dm+xml",
-						},
-						{
-							Name:  "INITIALBACKOFFTIME",
-							Value: timeInMiliseconds(30 * time.Second),
-						},
-						{
-							Name:  "MAXBACKOFFTIME",
-							Value: timeInMiliseconds(120 * time.Second),
-						},
-						{
-							Name:  "SSLCLIENTCERTSEARCHCRITERIA",
-							Value: "Subject=CN%3d" + strings.ReplaceAll(url.PathEscape(clientCertificate.Subject.String()), "=", "%3D") + "&Stores=MY%5C" + certStore,
-						},
-					},
-					Characteristics: []wap.WapCharacteristic{
-						{
-							Type: "APPAUTH",
-							Params: []wap.WapParameter{
-								{
-									Name:  "AAUTHLEVEL",
-									Value: "CLIENT",
-								},
-								{
-									Name:  "AAUTHTYPE",
-									Value: "DIGEST",
-								},
-								{
-									Name:  "AAUTHSECRET",
-									Value: "dummy",
-								},
-								{
-									Name:  "AAUTHDATA",
-									Value: "nonce",
-								},
-							},
-						},
-						{
-							Type: "APPAUTH",
-							Params: []wap.WapParameter{
-								{
-									Name:  "AAUTHLEVEL",
-									Value: "APPSRV",
-								},
-								{
-									Name:  "AAUTHTYPE",
-									Value: "DIGEST",
-								},
-								{
-									Name:  "AAUTHNAME",
-									Value: "dummy",
-								},
-								{
-									Name:  "AAUTHSECRET",
-									Value: "dummy",
-								},
-								{
-									Name:  "AAUTHDATA",
-									Value: "nonce",
-								},
-							},
-						},
-					},
-				},
-				{
-					Type: "DMClient",
-					Characteristics: []wap.WapCharacteristic{
-						{
-							Type: "Provider",
-							Characteristics: []wap.WapCharacteristic{
-								{
-									Type: "MattraxMDM",
-									Params: append([]wap.WapParameter{
-										{
-											Name:     "EntDeviceName",
-											Value:    cmd.GetAdditionalContextItem("DeviceName"),
-											DataType: "string",
-										},
-										{
-											Name:     "EntDMID",
-											Value:    cmd.GetAdditionalContextItem("DeviceID"),
-											DataType: "string",
-										},
-										{
-											Name:     "UPN",
-											Value:    authClaims.Subject,
-											DataType: "string",
-										},
-									}, DMCLientProviderParameters...),
-									Characteristics: []wap.WapCharacteristic{
-										{
-											Type: "Poll",
-											Params: []wap.WapParameter{
-												{
-													Name:     "IntervalForFirstSetOfRetries",
-													Value:    "3",
-													DataType: "integer",
-												},
-												{
-													Name:     "NumberOfFirstRetries",
-													Value:    "5",
-													DataType: "integer",
-												},
-												{
-													Name:     "IntervalForSecondSetOfRetries",
-													Value:    "15",
-													DataType: "integer",
-												},
-												{
-													Name:     "NumberOfSecondRetries",
-													Value:    "8",
-													DataType: "integer",
-												},
-												{
-													Name:     "IntervalForRemainingScheduledRetries",
-													Value:    "480",
-													DataType: "integer",
-												},
-												{
-													Name:     "NumberOfRemainingScheduledRetries",
-													Value:    "0",
-													DataType: "integer",
-												},
-												{
-													Name:     "PollOnLogin",
-													Value:    "true",
-													DataType: "boolean",
-												},
-												{
-													Name:     "AllUsersPollOnFirstLogin",
-													Value:    "true",
-													DataType: "boolean",
-												},
-											},
-										},
-										{
-											Type: "CustomEnrollmentCompletePage",
-											Params: []wap.WapParameter{
-												{
-													Name:     "Title",
-													Value:    "Mattrax Enrollment Complete",
-													DataType: "string",
-												},
-												{
-													Name:     "BodyText",
-													Value:    "Your device is now being managed by '" + settings.TenantName + "'. Please contact your IT administrators for support if you have any problems.",
-													DataType: "string",
-												},
-											},
-										},
-									},
-								},
-							},
-						},
+					{
+						Name:     "BodyText",
+						Value:    "Your device is now being managed by '" + settings.TenantName + "'. Please contact your IT administrators for support if you have any problems.",
+						DataType: "string",
 					},
 				},
 			},
-		}
+		})
 
 		provisioningProfileXML, err := xml.Marshal(wapProvisioningDoc)
 		if err != nil {
@@ -746,10 +503,6 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 		res.Populate("http://schemas.microsoft.com/windows/pki/2009/01/enrollment/RSTRC/wstep")
 		soap.Respond(res, w)
 	}
-}
-
-func timeInMiliseconds(d time.Duration) string {
-	return strconv.Itoa(int(d / time.Millisecond))
 }
 
 // RsaPublicKey reflects the ASN.1 structure of a PKCS#1 public key.

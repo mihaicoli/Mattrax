@@ -2,22 +2,22 @@ package wap
 
 import "github.com/mattrax/xml"
 
-// WapProvisioningDoc contains the manage client configuration
-type WapProvisioningDoc struct {
-	XMLName        xml.Name            `xml:"wap-provisioningdoc"`
-	Version        string              `xml:"version,attr"`
-	Characteristic []WapCharacteristic `xml:"characteristic"`
+// ProvisioningDoc contains the manage client configuration
+type ProvisioningDoc struct {
+	XMLName        xml.Name         `xml:"wap-provisioningdoc"`
+	Version        string           `xml:"version,attr"`
+	Characteristic []Characteristic `xml:"characteristic"`
 }
 
-// WapCharacteristic is a management client characteristic
-type WapCharacteristic struct {
+// Characteristic is a management client characteristic
+type Characteristic struct {
 	Type            string `xml:"type,attr,omitempty"`
-	Params          []WapParameter
-	Characteristics []WapCharacteristic `xml:"characteristic,omitempty"`
+	Params          []Parameter
+	Characteristics []Characteristic `xml:"characteristic,omitempty"`
 }
 
-// WapParameter is a management client parameter (setting) that is set on a characteristic
-type WapParameter struct {
+// Parameter is a management client parameter (setting) that is set on a characteristic
+type Parameter struct {
 	XMLName  xml.Name `xml:"parm"`
 	Name     string   `xml:"name,attr,omitempty"`
 	Value    string   `xml:"value,attr,omitempty"`

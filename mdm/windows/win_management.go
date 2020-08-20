@@ -158,8 +158,8 @@ func ManagementHandler(ctx context.Context, srv *mattrax.Server, cmd syncml.Mess
 			res.Set("Add", payload.Uri, payload.Type, payload.Format, payload.Value)
 
 			// TODO: NodeCache
-			// r.SetRaw("Add", "./Vendor/MSFT/NodeCache/MattraxMDM/Nodes/"+node+"/NodeURI", "", "", payload.Uri)
-			// r.SetRaw("Add", "./Vendor/MSFT/NodeCache/MattraxMDM/Nodes/"+node+"/ExpectedValue", "", "", payload.Value)
+			// r.SetRaw("Add", "./Vendor/MSFT/NodeCache/" + ProviderID + "/Nodes/"+node+"/NodeURI", "", "", payload.Uri)
+			// r.SetRaw("Add", "./Vendor/MSFT/NodeCache/" + ProviderID + "/Nodes/"+node+"/ExpectedValue", "", "", payload.Value)
 		}
 
 		var nodecache_node int32
