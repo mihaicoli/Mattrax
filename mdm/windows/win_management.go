@@ -108,7 +108,7 @@ func ManagementHandler(ctx context.Context, srv *mattrax.Server, cmd syncml.Mess
 				// TODO: ADD login status
 				continue
 			} else {
-				fmt.Println("Unkown Alert Type:", command.Data)
+				fmt.Println("Unknown Alert Type:", command.Data)
 			}
 			break
 		case "Results":
@@ -162,8 +162,8 @@ func ManagementHandler(ctx context.Context, srv *mattrax.Server, cmd syncml.Mess
 			// r.SetRaw("Add", "./Vendor/MSFT/NodeCache/" + ProviderID + "/Nodes/"+node+"/ExpectedValue", "", "", payload.Value)
 		}
 
-		var nodecache_node int32
-		if nodecache_node, err = srv.DB.NewDeviceCacheNode(ctx, db.NewDeviceCacheNodeParams{
+		var nodecacheNode int32
+		if nodecacheNode, err = srv.DB.NewDeviceCacheNode(ctx, db.NewDeviceCacheNodeParams{
 			DeviceID:  device.ID,
 			PayloadID: sql.NullInt32{payload.ID, true},
 		}); err != nil {
@@ -172,7 +172,7 @@ func ManagementHandler(ctx context.Context, srv *mattrax.Server, cmd syncml.Mess
 			return
 		}
 
-		fmt.Println("NodeCache Destined" + strconv.Itoa(int(nodecache_node))) // TODO: NodeCache + Use Atomics for it
+		fmt.Println("NodeCache Destined" + strconv.Itoa(int(nodecacheNode))) // TODO: NodeCache + Use Atomics for it
 		// TODO: Method for checking if nodecache was set/if it successed?
 	}
 

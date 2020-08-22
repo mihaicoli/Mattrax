@@ -3,14 +3,16 @@
 -- name: GetUser :one
 SELECT * FROM users WHERE upn = $1 LIMIT 1;
 
--- name: NewAzureADUser :exec
-INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3); -- TODO: Insert or Update
+-- name: NewAzureADUser :one
+INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING *; -- TODO: Insert or Update
+
+-- TODO: Merge all NewDevice functions to single query
 
 -- name: NewDevice :one
-INSERT INTO devices(udid, state, enrollment_type, name, serial_number, operating_system, azure_did, enrolled_by) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id;
+INSERT INTO devices(udid, state, enrollment_type, name, hw_dev_id, operating_system, azure_did, enrolled_by) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id;
 
 -- name: NewDeviceReplacingExisting :exec
-UPDATE devices SET state=$2, enrollment_type=$3, name=$4, serial_number=$5, operating_system=$6, azure_did=$7, nodecache_version='', lastseen=NOW(), lastseen_status=0, enrolled_at=NOW(), enrolled_by=$8 WHERE udid = $1;
+UPDATE devices SET state=$2, enrollment_type=$3, name=$4, hw_dev_id=$5, operating_system=$6, azure_did=$7, nodecache_version='', lastseen=NOW(), lastseen_status=0, enrolled_at=NOW(), enrolled_by=$8 WHERE udid = $1;
 
 -- name: NewDeviceReplacingExistingResetCache :exec
 DELETE FROM device_cache WHERE device_id=$1;

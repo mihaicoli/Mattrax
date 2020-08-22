@@ -1,6 +1,8 @@
 package soap
 
-import "github.com/mattrax/xml"
+import (
+	"github.com/mattrax/xml"
+)
 
 // PolicyRequest contains the user authentication information
 type PolicyRequest struct {
@@ -71,4 +73,59 @@ type XCEPoID struct {
 	DefaultName    string `xml:"defaultName"`
 	Group          int    `xml:"group"`
 	Value          string `xml:"value"`
+}
+
+// NewPolicyResponse creates a generic policy response envelope
+func NewPolicyResponse(relatesTo, policyID, policyFriendlyName string) ResponseEnvelope {
+	var res = ResponseEnvelope{
+		Header: ResponseHeader{
+			RelatesTo: relatesTo,
+		},
+		Body: ResponseEnvelopeBody{
+			Body: PolicyResponse{
+				Response: PolicyXCEPResponse{
+					PolicyID:           policyID,
+					PolicyFriendlyName: policyFriendlyName,
+					NextUpdateHours:    NillableField,
+					PoliciesNotChanged: NillableField,
+					Policies: []XCEPPolicy{
+						{
+							OIDReferenceID: 0, // References to OID defined in OIDs section
+							CAs:            NillableField,
+							Attributes: XCEPAttributes{
+								PolicySchema: 3,
+								PrivateKeyAttributes: XCEPPrivateKeyAttributes{
+									MinimalKeyLength:      4096,
+									KeySpec:               NillableField,
+									KeyUsageProperty:      NillableField,
+									Permissions:           NillableField,
+									AlgorithmOIDReference: NillableField,
+									CryptoProviders:       NillableField,
+								},
+								SupersededPolicies:        NillableField,
+								PrivateKeyFlags:           NillableField,
+								SubjectNameFlags:          NillableField,
+								EnrollmentFlags:           NillableField,
+								GeneralFlags:              NillableField,
+								HashAlgorithmOIDReference: 0,
+								RARequirements:            NillableField,
+								KeyArchivalAttributes:     NillableField,
+								Extensions:                NillableField,
+							},
+						},
+					},
+				},
+				OIDs: []XCEPoID{
+					{
+						OIDReferenceID: 0,
+						DefaultName:    "szOID_OIWSEC_SHA256",
+						Group:          2, // 2 = Encryption algorithm identifier
+						Value:          "2.16.840.1.101.3.4.2.1",
+					},
+				},
+			},
+		},
+	}
+	res.Populate("http://schemas.microsoft.com/windows/pki/2009/01/enrollmentpolicy/IPolicy/GetPoliciesResponse")
+	return res
 }

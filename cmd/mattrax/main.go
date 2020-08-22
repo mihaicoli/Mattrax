@@ -13,6 +13,7 @@ import (
 	"github.com/mattrax/Mattrax/internal/certificates"
 	"github.com/mattrax/Mattrax/internal/db"
 	"github.com/mattrax/Mattrax/internal/middleware"
+	"github.com/mattrax/Mattrax/internal/settings"
 	"github.com/mattrax/Mattrax/mdm"
 	"github.com/patrickmn/go-cache"
 	"github.com/rs/zerolog"
@@ -50,9 +51,16 @@ func main() {
 		GlobalRouter: mux.NewRouter(),
 		DB:           q,
 		Cache:        cache.New(5*time.Minute, 10*time.Minute),
-		Cert:         certificates.Service{q},
 	}
-	srv.Auth = authentication.NewService(srv.Cert, srv.Cache, srv.DB, args.Domain)
+	if srv.Settings, err = settings.New(srv.DB); err != nil {
+		log.Fatal().Err(err).Msg("Error starting settings service")
+	}
+	if srv.Cert, err = certificates.New(srv.DB); err != nil {
+		log.Fatal().Err(err).Msg("Error starting certificates service")
+	}
+	if srv.Auth, err = authentication.New(srv.Cert, srv.Cache, srv.DB, args.Domain, args.Debug); err != nil {
+		log.Fatal().Err(err).Msg("Error starting authentication service")
+	}
 	srv.GlobalRouter.Use(middleware.Logging())
 	srv.GlobalRouter.Use(middleware.Headers())
 	srv.Router = srv.GlobalRouter.Schemes("https").Host(args.Domain).Subrouter()

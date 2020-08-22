@@ -1,24 +1,16 @@
 package windows
 
 import (
-	"context"
-	"crypto/rand"
-	"crypto/x509"
 	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"math/big"
-	mathrand "math/rand"
 	"net/http"
 	"net/url"
-	"os"
-	"time"
 
-	"github.com/gorilla/mux"
-	"github.com/lib/pq"
 	mattrax "github.com/mattrax/Mattrax/internal"
 	"github.com/mattrax/Mattrax/internal/db"
+	"github.com/mattrax/Mattrax/pkg"
 	"github.com/mattrax/Mattrax/pkg/soap"
 	wap "github.com/mattrax/Mattrax/pkg/wap_provisioning_doc"
 	"github.com/mattrax/xml"
@@ -27,9 +19,12 @@ import (
 
 // Discovery handles the discovery phase of enrollment.
 func Discovery(srv *mattrax.Server) http.HandlerFunc {
-	enrollmentPolicyServiceURL := getNamedRouteURLOrFatal(srv.GlobalRouter, "winmdm-policy")
-	enrollmentServiceURL := getNamedRouteURLOrFatal(srv.GlobalRouter, "winmdm-enrollment")
-	federationServiceURL := getNamedRouteURLOrFatal(srv.GlobalRouter, "login")
+	enrollmentPolicyServiceURL, err := pkg.GetNamedRouteURL(srv.GlobalRouter, "winmdm-policy")
+	enrollmentServiceURL, err2 := pkg.GetNamedRouteURL(srv.GlobalRouter, "winmdm-enrollment")
+	federationServiceURL, err3 := pkg.GetNamedRouteURL(srv.GlobalRouter, "login")
+	if err != nil || err2 != nil || err3 != nil {
+		log.Fatal().Err(err).Err(err2).Err(err3).Msg("Error determining route URL") // TODO: Move error handling to main package
+	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
@@ -42,21 +37,14 @@ func Discovery(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		var res = soap.ResponseEnvelope{
-			Header: soap.ResponseHeader{
-				RelatesTo: cmd.Header.MessageID,
-			},
-			Body: soap.ResponseEnvelopeBody{
-				Body: soap.DiscoverResponse{
-					AuthPolicy:                 "Federated",
-					EnrollmentVersion:          cmd.Body.RequestVersion,
-					EnrollmentPolicyServiceURL: enrollmentPolicyServiceURL,
-					EnrollmentServiceURL:       enrollmentServiceURL,
-					AuthenticationServiceURL:   federationServiceURL,
-				},
-			},
+		var res = soap.NewDiscoverResponse(cmd.Header.MessageID)
+		res.Body.Body = soap.DiscoverResponse{
+			AuthPolicy:                 "Federated",
+			EnrollmentVersion:          cmd.Body.RequestVersion,
+			EnrollmentPolicyServiceURL: enrollmentPolicyServiceURL,
+			EnrollmentServiceURL:       enrollmentServiceURL,
+			AuthenticationServiceURL:   federationServiceURL,
 		}
-		res.Populate("http://schemas.microsoft.com/windows/management/2012/01/enrollment/IDiscoveryService/DiscoverResponse")
 		soap.Respond(res, w)
 	}
 }
@@ -70,7 +58,7 @@ func Policy(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		if url, err := url.ParseRequestURI(cmd.Header.To); cmd.Header.Action != "http://schemas.microsoft.com/windows/pki/2009/01/enrollmentpolicy/IPolicy/GetPolicies" || err != nil || url.Host != srv.Args.Domain || cmd.Header.WSSESecurity.BinarySecurityToken == "" {
+		if url, err := url.ParseRequestURI(cmd.Header.To); cmd.Header.Action != "http://schemas.microsoft.com/windows/pki/2009/01/enrollmentpolicy/IPolicy/GetPolicies" || err != nil || url.Host != srv.Args.Domain {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -87,85 +75,15 @@ func Policy(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		var res = soap.ResponseEnvelope{
-			Header: soap.ResponseHeader{
-				RelatesTo: cmd.Header.MessageID,
-			},
-			Body: soap.ResponseEnvelopeBody{
-				Body: soap.PolicyResponse{
-					Response: soap.PolicyXCEPResponse{
-						PolicyID:           "mattrax-identity",
-						PolicyFriendlyName: "Mattrax Identity Certificate Policy",
-						NextUpdateHours:    soap.NillableField,
-						PoliciesNotChanged: soap.NillableField,
-						Policies: []soap.XCEPPolicy{
-							{
-								OIDReferenceID: 0, // References to OID defined in OIDs section
-								CAs:            soap.NillableField,
-								Attributes: soap.XCEPAttributes{
-									PolicySchema: 3,
-									PrivateKeyAttributes: soap.XCEPPrivateKeyAttributes{
-										MinimalKeyLength:      4096,
-										KeySpec:               soap.NillableField,
-										KeyUsageProperty:      soap.NillableField,
-										Permissions:           soap.NillableField,
-										AlgorithmOIDReference: soap.NillableField,
-										CryptoProviders:       soap.NillableField,
-									},
-									SupersededPolicies:        soap.NillableField,
-									PrivateKeyFlags:           soap.NillableField,
-									SubjectNameFlags:          soap.NillableField,
-									EnrollmentFlags:           soap.NillableField,
-									GeneralFlags:              soap.NillableField,
-									HashAlgorithmOIDReference: 0,
-									RARequirements:            soap.NillableField,
-									KeyArchivalAttributes:     soap.NillableField,
-									Extensions:                soap.NillableField,
-								},
-							},
-						},
-					},
-					OIDs: []soap.XCEPoID{
-						{
-							OIDReferenceID: 0,
-							DefaultName:    "szOID_OIWSEC_SHA256",
-							Group:          2, // 2 = Encryption algorithm identifier
-							Value:          "2.16.840.1.101.3.4.2.1",
-						},
-					},
-				},
-			},
-		}
-		res.Populate("http://schemas.microsoft.com/windows/pki/2009/01/enrollmentpolicy/IPolicy/GetPoliciesResponse")
-		soap.Respond(res, w)
+		soap.Respond(soap.NewPolicyResponse(cmd.Header.MessageID, "mattrax-identity", "Mattrax Identity Certificate Policy"), w)
 	}
 }
 
 // Enrollment provisions the device's management client and issues it a certificate which is used for authentication
 func Enrollment(srv *mattrax.Server) http.HandlerFunc {
-	managementServiceURL := getNamedRouteURLOrFatal(srv.GlobalRouter, "winmdm-manage")
-
-	if identityCert, identityKey, err := srv.Cert.Get(context.Background(), "identity"); err == sql.ErrNoRows {
-		settings, err := srv.DB.Settings(context.Background())
-		if err != nil {
-			log.Error().Err(err).Msg("error retrieving settings")
-			os.Exit(1)
-		}
-
-		if settings.TenantName == "" {
-			settings.TenantName = "Mattrax"
-		}
-
-		_, _, err = srv.Cert.Create(context.Background(), "identity", false, pkix.Name{
-			CommonName: settings.TenantName + " Identity",
-		})
-		if err != nil {
-			log.Fatal().Err(err).Msg("Error creating new identity root certificate")
-			os.Exit(1)
-		}
-	} else if err != nil || identityCert == nil || identityKey == nil {
-		log.Fatal().Err(err).Msg("Error loading identity certificates")
-		os.Exit(1)
+	managementServiceURL, err := pkg.GetNamedRouteURL(srv.GlobalRouter, "winmdm-manage") // TODO: Move error handling to main package
+	if err != nil {
+		log.Fatal().Err(err).Msg("Error determining route URL")
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +92,7 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		if url, err := url.ParseRequestURI(cmd.Header.To); cmd.Header.Action != "http://schemas.microsoft.com/windows/pki/2009/01/enrollment/RST/wstep" || err != nil || url.Host != srv.Args.Domain || cmd.Header.WSSESecurity.BinarySecurityToken == "" {
+		if url, err := url.ParseRequestURI(cmd.Header.To); cmd.Header.Action != "http://schemas.microsoft.com/windows/pki/2009/01/enrollment/RST/wstep" || err != nil || url.Host != srv.Args.Domain {
 			var res = soap.NewFault("s:Receiver", "s:MessageFormat", "", "The request was not destined for this server", "")
 			soap.Respond(res, w)
 			return
@@ -195,18 +113,28 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		// TODO: Check user exists in DB and report specific error if not -> Or handle creation if its an AAD user
-
-		settings, err := srv.DB.Settings(r.Context())
-		if err != nil {
-			log.Error().Err(err).Msg("error retrieving settings")
-			var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
+		settings := srv.Settings.Get()
+		if settings.DisableEnrollment {
+			var res = soap.NewFault("s:Receiver", "s:Authorization", "NotSupported", "Mattrax device enrollments have been disabled", "")
 			soap.Respond(res, w)
 			return
 		}
 
-		if settings.DisableEnrollment {
-			var res = soap.NewFault("s:Receiver", "s:Authorization", "NotSupported", "Mattrax device enrollments have been disabled", "")
+		var user db.User
+		if authClaims.MicrosoftSpecificAuthClaims.TenantID != "" {
+			if user, err = srv.DB.NewAzureADUser(r.Context(), db.NewAzureADUserParams{
+				Upn:        authClaims.Subject,
+				Fullname:   authClaims.Name,
+				AzureadOid: sql.NullString{authClaims.MicrosoftSpecificAuthClaims.ObjectID, true},
+			}); err != nil {
+				log.Error().Str("upn", authClaims.Subject).Str("oid", authClaims.MicrosoftSpecificAuthClaims.ObjectID).Err(err).Msg("error importing AzureAD user")
+				var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
+				soap.Respond(res, w)
+				return
+			}
+		} else if user, err = srv.DB.GetUser(r.Context(), authClaims.Subject); err != nil {
+			log.Error().Str("upn", authClaims.Subject).Err(err).Msg("error retrieving user")
+			var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
 			soap.Respond(res, w)
 			return
 		}
@@ -217,47 +145,47 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
 			soap.Respond(res, w)
 			return
-		}
-
-		if err != sql.ErrNoRows && existingDevice.State != db.DeviceStateUserUnenrolled {
+		} else if err == nil && existingDevice.State != db.DeviceStateUserUnenrolled && existingDevice.State != db.DeviceStateDeploying {
 			log.Debug().Int32("id", existingDevice.ID).Msg("Device already enrolled in Mattrax.")
 			var res = soap.NewFault("s:Receiver", "s:Authorization", "DeviceCapReached", "This device is already enrolled into Mattrax. Please remove before enrolling again", "")
 			soap.Respond(res, w)
 			return
 		}
 
-		if authClaims.MicrosoftSpecificAuthClaims.TenantID != "" {
-			if err := srv.DB.NewAzureADUser(r.Context(), db.NewAzureADUserParams{
-				Upn:        authClaims.Subject,
-				Fullname:   authClaims.Name,
-				AzureadOid: sql.NullString{authClaims.MicrosoftSpecificAuthClaims.ObjectID, true},
-			}); err != nil {
-				if pgerr, ok := err.(*pq.Error); ok {
-					if pgerr.Code == "23505" {
-						log.Warn().Err(err).Msg("Ignoring duplicate key warning.") // TODO: Fix SQL query to prevent this being needed
-					} else {
-						log.Error().Err(err).Msg("error creating new AzureAD user")
-						var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
-						soap.Respond(res, w)
-						return
-					}
+		csr, err := cmd.Body.BinarySecurityToken.ParseVerifyCSR(srv.Cert.IsIssuerIdentity)
+		if err != nil {
+			if aerr, ok := err.(pkg.AdvancedError); ok {
+				if err != nil && aerr.InternalDescription != "" {
+					log.Error().Err(err).Msg(aerr.InternalDescription)
 				}
+
+				var res = soap.NewFault(aerr.FaultCauser, aerr.FaultType, "", aerr.FaultReason, "")
+				soap.Respond(res, w)
 			}
+			return
 		}
 
 		device := db.NewDeviceParams{
 			Udid:            cmd.GetAdditionalContextItem("DeviceID"),
 			State:           db.DeviceStateDeploying,
 			Name:            cmd.GetAdditionalContextItem("DeviceName"),
-			SerialNumber:    cmd.GetAdditionalContextItem("HWDevID"),
+			HwDevID:         cmd.GetAdditionalContextItem("HWDevID"),
 			OperatingSystem: cmd.GetAdditionalContextItem("OSVersion"),
-			AzureDid:        authClaims.MicrosoftSpecificAuthClaims.DeviceID,
-			EnrolledBy:      sql.NullString{authClaims.Subject, true},
+			EnrolledBy:      sql.NullString{user.Upn, true},
+			AzureDid:        sql.NullString{authClaims.MicrosoftSpecificAuthClaims.DeviceID, authClaims.MicrosoftSpecificAuthClaims.DeviceID != ""},
+		}
+
+		var certStore = "User"
+		var clientCertSubject = pkix.Name{
+			OrganizationalUnit: []string{"WinMDM"},
 		}
 		if cmd.GetAdditionalContextItem("EnrollmentType") == "Device" {
+			certStore = "System"
 			device.EnrollmentType = db.EnrollmentTypeDevice
+			clientCertSubject.CommonName = cmd.GetAdditionalContextItem("DeviceID")
 		} else {
 			device.EnrollmentType = db.EnrollmentTypeUser
+			clientCertSubject.CommonName = user.Upn
 		}
 
 		var deviceID int32
@@ -290,72 +218,7 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			}
 		}
 
-		certificateSigningRequestDer, err := base64.StdEncoding.DecodeString(cmd.Body.BinarySecurityToken.Value)
-		if err != nil {
-			var res = soap.NewFault("s:Receiver", "a:InvalidSecurity", "", "The binary security token could not be decoded", "")
-			soap.Respond(res, w)
-			return
-		}
-
-		csr, err := x509.ParseCertificateRequest(certificateSigningRequestDer)
-		if err != nil {
-			log.Error().Err(err).Msg("error parsing binary security token certificate signing request")
-			var res = soap.NewFault("s:Receiver", "a:InvalidSecurity", "", "The binary security token could not be parsed", "")
-			soap.Respond(res, w)
-			return
-		} else if err = csr.CheckSignature(); err != nil {
-			log.Error().Err(err).Msg("error checking binary security token signature")
-			var res = soap.NewFault("s:Receiver", "a:InvalidSecurity", "", "The binary security token could not be verified", "")
-			soap.Respond(res, w)
-			return
-		}
-
-		identityCertificate, identityCertificateKey, err := srv.Cert.Get(r.Context(), "identity")
-		if err != nil || identityCertificate == nil || identityCertificateKey == nil {
-			log.Error().Bool("cert-null", identityCertificate == nil).Bool("key-null", identityCertificateKey == nil).Err(err).Msg("Error retrieving the identity certificate")
-			var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
-			soap.Respond(res, w)
-			return
-		}
-
-		if settings.TenantName == "" {
-			settings.TenantName = "Mattrax"
-		}
-
-		var certStore = "User"
-		if cmd.GetAdditionalContextItem("EnrollmentType") == "Device" {
-			certStore = "System"
-		}
-
-		var notBefore = time.Now().Add(time.Duration(mathrand.Int31n(120)) * -time.Minute)
-		clientCertificate := &x509.Certificate{
-			Version:            csr.Version,
-			Signature:          csr.Signature,
-			SignatureAlgorithm: x509.SHA256WithRSA,
-			PublicKey:          csr.PublicKey,
-			PublicKeyAlgorithm: csr.PublicKeyAlgorithm,
-			Subject: pkix.Name{
-				CommonName:         cmd.GetAdditionalContextItem("DeviceID"),
-				OrganizationalUnit: []string{"WinMDM"},
-			},
-			Extensions:      csr.Extensions,
-			ExtraExtensions: csr.ExtraExtensions,
-			DNSNames:        csr.DNSNames,
-			EmailAddresses:  csr.EmailAddresses,
-			IPAddresses:     csr.IPAddresses,
-			URIs:            csr.URIs,
-
-			SerialNumber:          big.NewInt(2), // TODO: Increasing (Should be unqiue for CA)
-			Issuer:                identityCertificate.Issuer,
-			NotBefore:             notBefore,
-			NotAfter:              notBefore.Add(365 * 24 * time.Hour),
-			KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
-			ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-			BasicConstraintsValid: true,
-			IsCA:                  false,
-		}
-
-		clientCertificateRaw, err := x509.CreateCertificate(rand.Reader, clientCertificate, identityCertificate, csr.PublicKey, identityCertificateKey)
+		identityCertificate, signedClientCertificate, rawSignedClientCertificate, err := srv.Cert.IdentitySignCSR(csr, clientCertSubject)
 		if err != nil {
 			log.Error().Err(err).Msg("error creating client certificate")
 			var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
@@ -376,7 +239,7 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			},
 			{
 				Name:     "UPN",
-				Value:    authClaims.Subject,
+				Value:    user.Upn,
 				DataType: "string",
 			},
 		}
@@ -403,7 +266,7 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 				Format:   "chr",
 				Value:    settings.TenantEmail,
 			}); err != nil {
-				log.Error().Err(err).Str("node", node).Msg("Error updating device inventory nod")
+				log.Error().Err(err).Str("node", node).Msg("Error updating device inventory node")
 			}
 		}
 
@@ -454,8 +317,8 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 		}
 
 		var wapProvisioningDoc = wap.NewProvisioningDoc()
-		wapProvisioningDoc.NewCertStore(identityCertificate, certStore, clientCertificateRaw)
-		wapProvisioningDoc.NewW7Application(ProviderID, settings.TenantName, managementServiceURL, certStore, clientCertificate.Subject.String())
+		wapProvisioningDoc.NewCertStore(identityCertificate, certStore, rawSignedClientCertificate)
+		wapProvisioningDoc.NewW7Application(ProviderID, settings.TenantName, managementServiceURL, certStore, signedClientCertificate.Subject.String())
 		wapProvisioningDoc.NewDMClient(ProviderID, DMCLientProviderParameters, []wap.Characteristic{
 			wap.DefaultPollCharacteristic,
 			{
@@ -468,14 +331,14 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 					},
 					{
 						Name:     "BodyText",
-						Value:    "Your device is now being managed by '" + settings.TenantName + "'. Please contact your IT administrators for support if you have any problems.",
+						Value:    "Welcome " + user.Fullname + ", Your device is now being managed by '" + settings.TenantName + "'. Please contact your IT administrators for support if you have any problems.",
 						DataType: "string",
 					},
 				},
 			},
 		})
 
-		provisioningProfileXML, err := xml.Marshal(wapProvisioningDoc)
+		rawProvisioningProfile, err := xml.Marshal(wapProvisioningDoc)
 		if err != nil {
 			log.Error().Err(err).Msg("error marshalling wap provisioning profile")
 			var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
@@ -483,45 +346,8 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		var res = soap.ResponseEnvelope{
-			Header: soap.ResponseHeader{
-				RelatesTo: cmd.Header.MessageID,
-			},
-			Body: soap.ResponseEnvelopeBody{
-				Body: soap.EnrollmentResponse{
-					TokenType:          "http://schemas.microsoft.com/5.0.0.0/ConfigurationManager/Enrollment/DeviceEnrollmentToken",
-					DispositionMessage: "", // TODO: Wrong type + What does it do?
-					BinarySecurityToken: soap.BinarySecurityToken{
-						ValueType:    "http://schemas.microsoft.com/5.0.0.0/ConfigurationManager/Enrollment/DeviceEnrollmentProvisionDoc",
-						EncodingType: "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd#base64binary",
-						Value:        base64.StdEncoding.EncodeToString(provisioningProfileXML),
-					},
-					RequestID: 0,
-				},
-			},
-		}
-		res.Populate("http://schemas.microsoft.com/windows/pki/2009/01/enrollment/RSTRC/wstep")
-		soap.Respond(res, w)
+		fmt.Println(string(rawProvisioningProfile))
+
+		soap.Respond(soap.NewEnrollmentResponse(cmd.Header.MessageID, rawProvisioningProfile), w)
 	}
-}
-
-// RsaPublicKey reflects the ASN.1 structure of a PKCS#1 public key.
-type RsaPublicKey struct { // TODO: Try and remove this
-	N *big.Int
-	E int
-}
-
-// TODO: Remove Fatal bit and return error. Do fatalling at caller
-func getNamedRouteURLOrFatal(r *mux.Router, name string, pairs ...string) string {
-	route := r.GetRoute(name)
-	if route == nil {
-		log.Fatal().Str("name", name).Msg("Error acquiring named route")
-	}
-
-	url, err := route.URL(pairs...)
-	if err != nil {
-		log.Fatal().Str("name", name).Err(err).Msg("Error acquiring url of named route")
-	}
-
-	return url.String()
 }

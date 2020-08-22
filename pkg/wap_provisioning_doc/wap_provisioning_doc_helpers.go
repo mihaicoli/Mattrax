@@ -154,7 +154,7 @@ func (doc *ProvisioningDoc) NewW7Application(providerID, tenantName, managementS
 			},
 			{
 				Name:  "SSLCLIENTCERTSEARCHCRITERIA",
-				Value: "Subject=CN%3d" + strings.ReplaceAll(url.PathEscape(clientSubject), "=", "%3D") + "&Stores=MY%5C" + certStore,
+				Value: "Subject=" + url.QueryEscape(clientSubject) + "&Stores=MY%5C" + certStore,
 			},
 		},
 		Characteristics: []Characteristic{

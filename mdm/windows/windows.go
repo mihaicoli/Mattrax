@@ -16,6 +16,7 @@ const ProviderID = "MattraxMDM"
 
 // Mount initialise the MDM server
 func Mount(srv *mattrax.Server) {
+	// TODO: Remove this
 	// Error reporting for subpackage marshalling and unmarshalling of various MDM data formats
 	pkg.ErrorHandler = func(errDescription string, err error) {
 		log.Error().Err(err).Msg(errDescription)
@@ -24,7 +25,7 @@ func Mount(srv *mattrax.Server) {
 	// TODO: Replace with UI based Login Route
 	srv.Router.HandleFunc("/Login.svc", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-		w.Write([]byte(`<h3>MDM Federated Login</h3><form method="post" action="` + r.URL.Query().Get("appru") + `"><p><input type="hidden" name="wresult" value="TODOSpecialTokenWhichVerifiesAuth" /></p><input type="submit" value="Login" /></form>`))
+		w.Write([]byte(`<h3>MDM Federated Login</h3><form method="post" action="` + r.URL.Query().Get("appru") + `"><p><input type="hidden" name="wresult" value="VIRTUAL_DEVICE_AUTH_TOKEN" /></p><input type="submit" value="Login" /></form>`))
 	}).Name("login").Methods("GET")
 
 	// TODO: Replace with UI based Login Route

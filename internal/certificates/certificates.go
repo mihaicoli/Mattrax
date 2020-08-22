@@ -4,112 +4,97 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
 	"math/big"
 	mathrand "math/rand"
+	"sync"
 	"time"
 
 	"github.com/mattrax/Mattrax/internal/db"
-	"github.com/rs/zerolog/log"
 )
 
-// RsaPublicKey reflects the ASN.1 structure of a PKCS#1 public key.
-type RsaPublicKey struct {
-	N *big.Int
-	E int
-}
-
-// Service handles certificate generation and parsing. It uses the DB to persist the certificates and/or keys
+// Service handles certificate generation, retrieval and signing on behalf of the rest of the server.
 type Service struct {
-	*db.Queries
+	authenticationPrivateKey *rsa.PrivateKey
+	authenticationLock       sync.RWMutex
+
+	identityCertificate *x509.Certificate
+	identityPrivateKey  *rsa.PrivateKey
+	identityLock        sync.RWMutex
 }
 
-// Get retrieves and parses a certificates
-func (cs Service) Get(ctx context.Context, id string) (cert *x509.Certificate, key *rsa.PrivateKey, err error) {
-	rawCert, err := cs.GetRawCert(ctx, id)
-	if err != nil {
-		return nil, nil, err
+// IsIssuerIdentity verifies if the certificate was issued by the Identity certificate
+func (s *Service) IsIssuerIdentity(cert *x509.Certificate) error {
+	signerVerificationOpts := x509.VerifyOptions{
+		Roots: x509.NewCertPool(),
 	}
 
-	if len(rawCert.Cert) != 0 {
-		cert, err = x509.ParseCertificate(rawCert.Cert)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
+	s.identityLock.RLock()
+	signerVerificationOpts.Roots.AddCert(s.identityCertificate)
+	s.identityLock.RUnlock()
 
-	if len(rawCert.Key) != 0 {
-		key, err = x509.ParsePKCS1PrivateKey(rawCert.Key)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return cert, key, nil
+	_, err := cert.Verify(signerVerificationOpts)
+	return err
 }
 
-// Create generates and saves a new certificate
-func (cs Service) Create(ctx context.Context, id string, keyOnly bool, subject pkix.Name) (cert *x509.Certificate, key *rsa.PrivateKey, err error) {
-	key, err = rsa.GenerateKey(rand.Reader, 4096)
-	if err != nil {
-		return nil, nil, err
+// IdentitySignCSR will sign a csr with the Identity certificate
+func (s *Service) IdentitySignCSR(csr *x509.CertificateRequest, subject pkix.Name) (*x509.Certificate, *x509.Certificate, []byte, error) {
+	s.identityLock.RLock()
+	var identityCertificate = s.identityCertificate
+	var identityCertificateKey = s.identityPrivateKey
+	s.identityLock.RUnlock()
+
+	var notBefore = time.Now().Add(time.Duration(mathrand.Int31n(120)) * -time.Minute)
+	clientCertificate := &x509.Certificate{
+		Version:            csr.Version,
+		Signature:          csr.Signature,
+		SignatureAlgorithm: x509.SHA256WithRSA,
+		PublicKey:          csr.PublicKey,
+		PublicKeyAlgorithm: csr.PublicKeyAlgorithm,
+		Subject:            subject,
+		Extensions:         csr.Extensions,
+		ExtraExtensions:    csr.ExtraExtensions,
+		DNSNames:           csr.DNSNames,
+		EmailAddresses:     csr.EmailAddresses,
+		IPAddresses:        csr.IPAddresses,
+		URIs:               csr.URIs,
+
+		SerialNumber:          big.NewInt(2), // TODO: Increasing (Should be unqiue for CA)
+		Issuer:                identityCertificate.Issuer,
+		NotBefore:             notBefore,
+		NotAfter:              notBefore.Add(365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  false,
 	}
 
-	if !keyOnly {
-		publicKeyBytes, err := asn1.Marshal(RsaPublicKey{
-			N: key.PublicKey.N,
-			E: key.PublicKey.E,
-		})
-		if err != nil {
-			return nil, nil, err
-		}
+	rawSignedCert, err := x509.CreateCertificate(rand.Reader, clientCertificate, identityCertificate, csr.PublicKey, identityCertificateKey)
+	return identityCertificate, clientCertificate, rawSignedCert, err
+}
 
-		subjectKeyIDRaw := sha1.Sum(publicKeyBytes)
-		notBefore := time.Now().Add(time.Duration(mathrand.Int31n(120)) * -time.Minute) // This randomises the creation time for added security
-		cert = &x509.Certificate{
-			SerialNumber:                big.NewInt(1),
-			Subject:                     subject,
-			NotBefore:                   notBefore,
-			NotAfter:                    notBefore.Add(365 * 24 * time.Hour),
-			KeyUsage:                    x509.KeyUsageCertSign | x509.KeyUsageCRLSign, // TODO: Are they required
-			ExtKeyUsage:                 nil,                                          // TODO: What does it do
-			UnknownExtKeyUsage:          nil,                                          // TODO: What does it do
-			BasicConstraintsValid:       true,                                         // TODO: What does it do
-			IsCA:                        true,
-			MaxPathLen:                  0, // TODO: What does it do
-			SubjectKeyId:                subjectKeyIDRaw[:],
-			PermittedDNSDomainsCritical: false, // TODO: What does it do
-			PermittedDNSDomains:         nil,   // TODO: What does it do
-		}
+// AuthenticationKey returns the private key used for authentication
+func (s *Service) AuthenticationKey() *rsa.PrivateKey {
+	s.authenticationLock.RLock()
+	var pk = s.authenticationPrivateKey
+	s.authenticationLock.RUnlock()
+	return pk
+}
 
-		certRaw, err := x509.CreateCertificate(rand.Reader, cert, cert, &key.PublicKey, key)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err := cs.CreateRawCert(ctx, db.CreateRawCertParams{
-			ID:   id,
-			Cert: certRaw,
-			Key:  x509.MarshalPKCS1PrivateKey(key),
-		}); err != nil {
-			return nil, nil, err
-		}
-
-		log.Info().Str("id", id).Msg("Generated new certificate")
-	} else {
-		if err := cs.CreateRawCert(ctx, db.CreateRawCertParams{
-			ID:   id,
-			Cert: nil,
-			Key:  x509.MarshalPKCS1PrivateKey(key),
-		}); err != nil {
-			return nil, nil, err
-		}
-
-		log.Info().Str("id", id).Msg("Generated new key")
+// New initialises a new certificate service
+func New(q *db.Queries) (s *Service, err error) {
+	s = &Service{}
+	if _, s.authenticationPrivateKey, err = LoadOrGenerate(context.Background(), q, "authentication", pkix.Name{
+		CommonName: "Mattrax Authentication",
+	}); err != nil {
+		return nil, err
+	}
+	if s.identityCertificate, s.identityPrivateKey, err = LoadOrGenerate(context.Background(), q, "identity", pkix.Name{
+		CommonName: "Mattrax Identity",
+	}); err != nil {
+		return nil, err
 	}
 
-	return cert, key, nil
+	return s, nil
 }

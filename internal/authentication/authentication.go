@@ -3,8 +3,6 @@ package authentication
 import (
 	"context"
 	"crypto/rsa"
-	"crypto/x509/pkix"
-	"database/sql"
 	"errors"
 	"net/url"
 	"time"
@@ -24,10 +22,19 @@ type Service struct {
 	signer     jose.Signer
 	issuer     string
 	db         *db.Queries
+	debugMode  bool
 }
 
 // Token parses a JWT, verifies it is valid and returns the claims held inside it
 func (as Service) Token(rawToken string) (AuthClaims, error) {
+	// Note: This authentication bypass for when development mode is enabled isn't great.
+	// TODO: Remove it when possible!
+	if as.debugMode && rawToken == "VIRTUAL_DEVICE_AUTH_TOKEN" {
+		return AuthClaims{
+			Subject: "virt@mattrax.otbeaumont.me",
+		}, nil
+	}
+
 	token, err := jwt.ParseSigned(rawToken)
 	if err != nil {
 		return AuthClaims{}, err
@@ -121,29 +128,18 @@ func (as Service) IssueToken(claims AuthClaims) (string, BasicClaims, error) {
 	return token, claims.BasicClaims, nil
 }
 
-// NewService returns a new AuthenticationService after it has been initialised
-func NewService(certService certificates.Service, cache *cache.Cache, db *db.Queries, domain string) Service {
+// New returns a new AuthenticationService after it has been initialised
+func New(certService *certificates.Service, cache *cache.Cache, db *db.Queries, domain string, debugMode bool) (*Service, error) {
 	var issuer = (&url.URL{Scheme: "https", Host: domain}).String()
 
 	var signerOpts = jose.SignerOptions{}
 	signerOpts.WithType("JWT")
 
-	_, rsaPrivateKey, err := certService.Get(context.TODO(), "authentication")
-	if err != nil && err != sql.ErrNoRows {
-		log.Fatal().Err(err).Msg("Error retrieving the authentication signer key")
-	} else if err == sql.ErrNoRows || rsaPrivateKey == nil {
-		_, rsaPrivateKey, err = certService.Create(context.TODO(), "authentication", true, pkix.Name{
-			CommonName: "Mattrax Authentication",
-		})
-		if err != nil {
-			log.Fatal().Err(err).Msg("Error creating new authentication signer key")
-		}
-	}
-
+	var rsaPrivateKey = certService.AuthenticationKey()
 	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: rsaPrivateKey}, &signerOpts)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create authentication signer")
+		return nil, err
 	}
 
-	return Service{rsaPrivateKey, cache, signer, issuer, db}
+	return &Service{rsaPrivateKey, cache, signer, issuer, db, debugMode}, nil
 }

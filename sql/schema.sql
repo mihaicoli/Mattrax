@@ -16,9 +16,9 @@ CREATE TABLE devices (
     enrollment_type enrollment_type NOT NULL,
     name TEXT UNIQUE NOT NULL,
     model TEXT DEFAULT '' NOT NULL,
-    serial_number TEXT UNIQUE NOT NULL,
+    hw_dev_id TEXT UNIQUE NOT NULL,
     operating_system TEXT NOT NULL,
-    azure_did TEXT UNIQUE DEFAULT '' NOT NULL,
+    azure_did TEXT UNIQUE,
     nodecache_version TEXT DEFAULT '' NOT NULL,
     lastseen TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     lastseen_status INTEGER DEFAULT 0 NOT NULL,
@@ -33,6 +33,10 @@ CREATE TABLE device_inventory (
     format TEXT DEFAULT '' NOT NULL,
     value TEXT DEFAULT '' NOT NULL,
     UNIQUE (device_id, uri)
+);
+
+CREATE TABLE device_session_cache (
+
 );
 
 CREATE TABLE policies (

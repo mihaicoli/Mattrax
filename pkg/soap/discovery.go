@@ -1,6 +1,8 @@
 package soap
 
-import "github.com/mattrax/xml"
+import (
+	"github.com/mattrax/xml"
+)
 
 // DiscoverRequest contains the device and user information to help inform the response
 type DiscoverRequest struct {
@@ -40,4 +42,18 @@ func (authPolicies AuthPolicies) IsAuthPolicySupported(authPolicyStr string) boo
 	}
 
 	return false
+}
+
+// NewDiscoverResponse creates a generic discover response envelope
+func NewDiscoverResponse(relatesTo string) ResponseEnvelope {
+	var res = ResponseEnvelope{
+		Header: ResponseHeader{
+			RelatesTo: relatesTo,
+		},
+		Body: ResponseEnvelopeBody{
+			Body: DiscoverResponse{},
+		},
+	}
+	res.Populate("http://schemas.microsoft.com/windows/management/2012/01/enrollment/IDiscoveryService/DiscoverResponse")
+	return res
 }

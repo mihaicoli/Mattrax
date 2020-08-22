@@ -5,6 +5,7 @@ import (
 	"github.com/mattrax/Mattrax/internal/authentication"
 	"github.com/mattrax/Mattrax/internal/certificates"
 	"github.com/mattrax/Mattrax/internal/db"
+	"github.com/mattrax/Mattrax/internal/settings"
 	"github.com/patrickmn/go-cache"
 )
 
@@ -20,8 +21,9 @@ type Server struct {
 	DB    *db.Queries
 	Cache *cache.Cache
 
-	Cert certificates.Service
-	Auth authentication.Service
+	Cert     *certificates.Service
+	Auth     *authentication.Service
+	Settings *settings.Service
 }
 
 // Arguments are the command line flags

@@ -61,7 +61,7 @@ func (q *Queries) DeviceUserUnenrollment(ctx context.Context, id int32) error {
 }
 
 const getDevice = `-- name: GetDevice :one
-SELECT id, udid, state, enrollment_type, name, model, serial_number, operating_system, azure_did, nodecache_version, lastseen, lastseen_status, enrolled_at, enrolled_by FROM devices WHERE id = $1 LIMIT 1
+SELECT id, udid, state, enrollment_type, name, model, hw_dev_id, operating_system, azure_did, nodecache_version, lastseen, lastseen_status, enrolled_at, enrolled_by FROM devices WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDevice(ctx context.Context, id int32) (Device, error) {
@@ -74,7 +74,7 @@ func (q *Queries) GetDevice(ctx context.Context, id int32) (Device, error) {
 		&i.EnrollmentType,
 		&i.Name,
 		&i.Model,
-		&i.SerialNumber,
+		&i.HwDevID,
 		&i.OperatingSystem,
 		&i.AzureDid,
 		&i.NodecacheVersion,
@@ -87,7 +87,7 @@ func (q *Queries) GetDevice(ctx context.Context, id int32) (Device, error) {
 }
 
 const getDeviceByUDID = `-- name: GetDeviceByUDID :one
-SELECT id, udid, state, enrollment_type, name, model, serial_number, operating_system, azure_did, nodecache_version, lastseen, lastseen_status, enrolled_at, enrolled_by FROM devices WHERE udid = $1 LIMIT 1
+SELECT id, udid, state, enrollment_type, name, model, hw_dev_id, operating_system, azure_did, nodecache_version, lastseen, lastseen_status, enrolled_at, enrolled_by FROM devices WHERE udid = $1 LIMIT 1
 `
 
 func (q *Queries) GetDeviceByUDID(ctx context.Context, udid string) (Device, error) {
@@ -100,7 +100,7 @@ func (q *Queries) GetDeviceByUDID(ctx context.Context, udid string) (Device, err
 		&i.EnrollmentType,
 		&i.Name,
 		&i.Model,
-		&i.SerialNumber,
+		&i.HwDevID,
 		&i.OperatingSystem,
 		&i.AzureDid,
 		&i.NodecacheVersion,
@@ -313,8 +313,8 @@ func (q *Queries) GetUser(ctx context.Context, upn string) (User, error) {
 	return i, err
 }
 
-const newAzureADUser = `-- name: NewAzureADUser :exec
-INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3)
+const newAzureADUser = `-- name: NewAzureADUser :one
+INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, fullname, password, mfa_token, azuread_oid
 `
 
 type NewAzureADUserParams struct {
@@ -323,14 +323,23 @@ type NewAzureADUserParams struct {
 	AzureadOid sql.NullString `json:"azuread_oid"`
 }
 
-func (q *Queries) NewAzureADUser(ctx context.Context, arg NewAzureADUserParams) error {
-	_, err := q.exec(ctx, q.newAzureADUserStmt, newAzureADUser, arg.Upn, arg.Fullname, arg.AzureadOid)
-	return err
+func (q *Queries) NewAzureADUser(ctx context.Context, arg NewAzureADUserParams) (User, error) {
+	row := q.queryRow(ctx, q.newAzureADUserStmt, newAzureADUser, arg.Upn, arg.Fullname, arg.AzureadOid)
+	var i User
+	err := row.Scan(
+		&i.Upn,
+		&i.Fullname,
+		&i.Password,
+		&i.MfaToken,
+		&i.AzureadOid,
+	)
+	return i, err
 }
 
 const newDevice = `-- name: NewDevice :one
 
-INSERT INTO devices(udid, state, enrollment_type, name, serial_number, operating_system, azure_did, enrolled_by) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
+
+INSERT INTO devices(udid, state, enrollment_type, name, hw_dev_id, operating_system, azure_did, enrolled_by) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id
 `
 
 type NewDeviceParams struct {
@@ -338,20 +347,21 @@ type NewDeviceParams struct {
 	State           DeviceState    `json:"state"`
 	EnrollmentType  EnrollmentType `json:"enrollment_type"`
 	Name            string         `json:"name"`
-	SerialNumber    string         `json:"serial_number"`
+	HwDevID         string         `json:"hw_dev_id"`
 	OperatingSystem string         `json:"operating_system"`
-	AzureDid        string         `json:"azure_did"`
+	AzureDid        sql.NullString `json:"azure_did"`
 	EnrolledBy      sql.NullString `json:"enrolled_by"`
 }
 
 // TODO: Insert or Update
+// TODO: Merge all NewDevice functions to single query
 func (q *Queries) NewDevice(ctx context.Context, arg NewDeviceParams) (int32, error) {
 	row := q.queryRow(ctx, q.newDeviceStmt, newDevice,
 		arg.Udid,
 		arg.State,
 		arg.EnrollmentType,
 		arg.Name,
-		arg.SerialNumber,
+		arg.HwDevID,
 		arg.OperatingSystem,
 		arg.AzureDid,
 		arg.EnrolledBy,
@@ -378,7 +388,7 @@ func (q *Queries) NewDeviceCacheNode(ctx context.Context, arg NewDeviceCacheNode
 }
 
 const newDeviceReplacingExisting = `-- name: NewDeviceReplacingExisting :exec
-UPDATE devices SET state=$2, enrollment_type=$3, name=$4, serial_number=$5, operating_system=$6, azure_did=$7, nodecache_version='', lastseen=NOW(), lastseen_status=0, enrolled_at=NOW(), enrolled_by=$8 WHERE udid = $1
+UPDATE devices SET state=$2, enrollment_type=$3, name=$4, hw_dev_id=$5, operating_system=$6, azure_did=$7, nodecache_version='', lastseen=NOW(), lastseen_status=0, enrolled_at=NOW(), enrolled_by=$8 WHERE udid = $1
 `
 
 type NewDeviceReplacingExistingParams struct {
@@ -386,9 +396,9 @@ type NewDeviceReplacingExistingParams struct {
 	State           DeviceState    `json:"state"`
 	EnrollmentType  EnrollmentType `json:"enrollment_type"`
 	Name            string         `json:"name"`
-	SerialNumber    string         `json:"serial_number"`
+	HwDevID         string         `json:"hw_dev_id"`
 	OperatingSystem string         `json:"operating_system"`
-	AzureDid        string         `json:"azure_did"`
+	AzureDid        sql.NullString `json:"azure_did"`
 	EnrolledBy      sql.NullString `json:"enrolled_by"`
 }
 
@@ -398,7 +408,7 @@ func (q *Queries) NewDeviceReplacingExisting(ctx context.Context, arg NewDeviceR
 		arg.State,
 		arg.EnrollmentType,
 		arg.Name,
-		arg.SerialNumber,
+		arg.HwDevID,
 		arg.OperatingSystem,
 		arg.AzureDid,
 		arg.EnrolledBy,

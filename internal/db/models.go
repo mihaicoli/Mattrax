@@ -62,9 +62,9 @@ type Device struct {
 	EnrollmentType   EnrollmentType `json:"enrollment_type"`
 	Name             string         `json:"name"`
 	Model            string         `json:"model"`
-	SerialNumber     string         `json:"serial_number"`
+	HwDevID          string         `json:"hw_dev_id"`
 	OperatingSystem  string         `json:"operating_system"`
-	AzureDid         string         `json:"azure_did"`
+	AzureDid         sql.NullString `json:"azure_did"`
 	NodecacheVersion string         `json:"nodecache_version"`
 	Lastseen         time.Time      `json:"lastseen"`
 	LastseenStatus   int32          `json:"lastseen_status"`
@@ -85,6 +85,9 @@ type DeviceInventory struct {
 	Uri      string `json:"uri"`
 	Format   string `json:"format"`
 	Value    string `json:"value"`
+}
+
+type DeviceSessionCache struct {
 }
 
 type Group struct {
