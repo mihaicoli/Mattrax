@@ -1,9 +1,13 @@
 // TODO: Pagination, Filters
 
 export const actions = {
-  getAll(_context: any) {
+  getAll(context: any) {
     return new Promise((resolve, reject) => {
-      fetch('https://run.mocky.io/v3/6d4001df-2d95-4cf0-82ff-3271f27e2dd5')
+      fetch(process.env.baseUrl + '/policies', {
+        headers: new Headers({
+          Authorization: 'Bearer ' + context.rootState.authentication.authToken,
+        }),
+      })
         .then(async (res) => {
           if (res.status !== 200) {
             reject(new Error('Error fetching policies from server'))
@@ -19,11 +23,18 @@ export const actions = {
         })
     })
   },
-  getByID(_context: any, _policyID: string) {
+  getByID(context: any, policyID: string) {
     return new Promise((resolve, reject) => {
-      fetch('https://run.mocky.io/v3/771ff025-55c6-4845-a255-9a095333af3a')
+      fetch(process.env.baseUrl + '/policy/' + encodeURI(policyID), {
+        headers: new Headers({
+          Authorization: 'Bearer ' + context.rootState.authentication.authToken,
+        }),
+      })
         .then(async (res) => {
-          if (res.status !== 200) {
+          if (res.status === 404) {
+            resolve(null)
+            return
+          } else if (res.status !== 200) {
             reject(new Error('Error fetching policy from server'))
             return
           }

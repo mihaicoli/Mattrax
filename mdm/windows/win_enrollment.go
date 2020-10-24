@@ -120,18 +120,20 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		var user db.User
+		var user db.GetUserRow
 		if authClaims.MicrosoftSpecificAuthClaims.TenantID != "" {
-			if user, err = srv.DB.NewAzureADUser(r.Context(), db.NewAzureADUserParams{
+			aadUser, err := srv.DB.NewAzureADUser(r.Context(), db.NewAzureADUserParams{
 				Upn:        authClaims.Subject,
 				Fullname:   authClaims.Name,
 				AzureadOid: sql.NullString{authClaims.MicrosoftSpecificAuthClaims.ObjectID, true},
-			}); err != nil {
+			})
+			if err != nil {
 				log.Error().Str("upn", authClaims.Subject).Str("oid", authClaims.MicrosoftSpecificAuthClaims.ObjectID).Err(err).Msg("error importing AzureAD user")
 				var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")
 				soap.Respond(res, w)
 				return
 			}
+			user = db.GetUserRow(aadUser) // TODO: Error handling??
 		} else if user, err = srv.DB.GetUser(r.Context(), authClaims.Subject); err != nil {
 			log.Error().Str("upn", authClaims.Subject).Err(err).Msg("error retrieving user")
 			var res = soap.NewFault("s:Receiver", "s:InternalServiceFault", "", "Mattrax encountered an error. Please check the server logs for more info", "")

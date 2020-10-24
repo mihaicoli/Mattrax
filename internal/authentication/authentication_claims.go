@@ -15,16 +15,17 @@ type AuthClaims struct {
 	MicrosoftSpecificAuthClaims
 	Subject            string `json:"sub,omitempty"`
 	FullName           string `json:"name,omitempty"`
+	Organisation       string `json:"org,omitempty"`
 	Authenticated      bool   `json:"authed,omitempty"`    // This value is set true once any extra authentication has been completed (such as MFA or forced password change). If false DO NOT USE!
 	AuthenticationOnly bool   `json:"auth_only,omitempty"` // Set true for Windows MDM enrollment. If true DO NOT USE!
 }
 
 // MicrosoftSpecificAuthClaims has the claims for Microsoft AzureAD authentication tokens.
 type MicrosoftSpecificAuthClaims struct {
-	Audience          string `json:"aud"`
-	ObjectID          string `json:"oid"`
-	UserPrincipalName string `json:"upn"`
-	TenantID          string `json:"tid"`
-	Name              string `json:"name"`
-	DeviceID          string `json:"deviceid"`
+	Audience          string `json:"aud,omitempty"`
+	ObjectID          string `json:"oid,omitempty"`
+	UserPrincipalName string `json:"upn,omitempty"`
+	TenantID          string `json:"tid,omitempty"`
+	Name              string `json:"name,omitempty"`
+	DeviceID          string `json:"deviceid,omitempty"`
 }

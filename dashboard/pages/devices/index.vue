@@ -3,7 +3,7 @@
   <div v-else>
     <h1>Devices</h1>
     <div class="filter-panel">
-      <input type="text" placeholder="Search..." />
+      <input type="text" placeholder="Search..." disabled />
     </div>
     <TableView :headings="['Name', 'Owner', 'Model', 'Groups']">
       <tr v-for="device in devices" :key="device.id">

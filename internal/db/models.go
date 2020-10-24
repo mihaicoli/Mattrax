@@ -61,6 +61,7 @@ type Device struct {
 	State            DeviceState    `json:"state"`
 	EnrollmentType   EnrollmentType `json:"enrollment_type"`
 	Name             string         `json:"name"`
+	Description      sql.NullString `json:"description"`
 	Model            string         `json:"model"`
 	HwDevID          string         `json:"hw_dev_id"`
 	OperatingSystem  string         `json:"operating_system"`

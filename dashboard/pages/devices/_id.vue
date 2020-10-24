@@ -1,5 +1,6 @@
 <template>
   <div v-if="loading" class="loading">Loading Device...</div>
+  <div v-else-if="notfound" class="notfound">Device Not Found</div>
   <div v-else>
     <div class="panel">
       <div class="panel-head">
@@ -41,6 +42,7 @@ export default Vue.extend({
   data() {
     return {
       loading: true,
+      notfound: false,
       device: {},
     }
   },
@@ -48,7 +50,11 @@ export default Vue.extend({
     this.$store
       .dispatch('devices/getByID', this.$route.params.id)
       .then((device) => {
-        this.device = device
+        if (device === null) {
+          this.notfound = true
+        } else {
+          this.device = device
+        }
         this.loading = false
       })
       .catch((err) => {

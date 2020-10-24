@@ -4,7 +4,7 @@
       <h1>Sign in</h1>
       <label>Email</label>
       <input
-        v-model="username"
+        v-model="upn"
         required
         type="email"
         placeholder="user@example.com"
@@ -25,7 +25,7 @@ import Vue from 'vue'
 export default Vue.extend({
   data() {
     return {
-      username: '',
+      upn: '',
       password: '',
       errorTxt: '',
     }
@@ -34,7 +34,7 @@ export default Vue.extend({
     login() {
       this.$store
         .dispatch('authentication/login', {
-          username: this.username,
+          upn: this.upn,
           password: this.password,
         })
         .then(() => {

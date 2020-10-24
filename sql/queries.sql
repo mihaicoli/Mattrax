@@ -1,10 +1,18 @@
 -- DO NOT RUN THIS FILE. It is used along with sqlc to generate type safe Go from SQL
 
+-- name: GetUsers :many
+-- Exposed via API
+SELECT upn, fullname FROM users LIMIT 100;
+
 -- name: GetUser :one
-SELECT * FROM users WHERE upn = $1 LIMIT 1;
+-- Exposed via API
+SELECT upn, fullname, azuread_oid FROM users WHERE upn = $1 LIMIT 1;
+
+-- name: GetUserForLogin :one
+SELECT fullname, password, mfa_token FROM users WHERE upn = $1 LIMIT 1;
 
 -- name: NewAzureADUser :one
-INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING *; -- TODO: Insert or Update
+INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, fullname, azuread_oid; -- TODO: Insert or Update
 
 -- TODO: Merge all NewDevice functions to single query
 
@@ -25,6 +33,22 @@ UPDATE devices SET state=$2 WHERE id = $1;
 
 -- name: DeviceUserUnenrollment :exec
 UPDATE devices SET state='user_unenrolled', enrollment_type='Unenrolled', azure_did='', nodecache_version='', lastseen=to_timestamp(CAST(0 as bigint)/1000), lastseen_status=0, enrolled_at=to_timestamp(CAST(0 as bigint)/1000), enrolled_by=NULL WHERE id = $1;
+
+-- name: GetDevices :many
+-- Exposed via API
+SELECT id, name, model FROM devices LIMIT 100;
+
+-- name: GetBasicDevice :one
+-- Exposed via API
+SELECT id, name, description, model FROM devices WHERE id = $1 LIMIT 1;
+
+-- name: GetBasicDeviceScopedGroups :many
+-- Exposed via API
+SELECT groups.id, groups.name FROM groups INNER JOIN group_devices ON group_devices.group_id=groups.id WHERE group_devices.device_id = $1;
+
+-- name: GetBasicDeviceScopedPolicies :many
+-- Exposed via API
+SELECT * FROM policies INNER JOIN group_policies ON group_policies.policy_id = policies.id INNER JOIN group_devices ON group_devices.group_id=group_policies.group_id WHERE group_devices.device_id = $1;
 
 -- name: GetDevice :one
 SELECT * FROM devices WHERE id = $1 LIMIT 1;
@@ -53,8 +77,13 @@ DELETE FROM device_cache WHERE device_id = $1 AND payload_id = $2;
 -- name: UpdateDeviceInventoryNode :exec
 INSERT INTO device_inventory(device_id, uri, format, value) VALUES ($1, $2, $3, $4); -- TODO: Update or Replace
 
+-- name: GetPolicies :many
+-- Exposed via API
+SELECT id, name FROM policies LIMIT 100;
+
 -- name: GetPolicy :one
-SELECT * FROM policies WHERE id = $1 LIMIT 1;
+-- Exposed via API
+SELECT id, name, description, priority FROM policies WHERE id = $1 LIMIT 1;
 
 -- name: GetPoliciesPayloads :many
 SELECT * FROM policies_payload WHERE policy_id = $1;

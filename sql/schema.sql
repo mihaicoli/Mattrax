@@ -15,6 +15,7 @@ CREATE TABLE devices (
     state device_state NOT NULL,
     enrollment_type enrollment_type NOT NULL,
     name TEXT UNIQUE NOT NULL,
+    description TEXT,
     model TEXT DEFAULT '' NOT NULL,
     hw_dev_id TEXT UNIQUE NOT NULL,
     operating_system TEXT NOT NULL,

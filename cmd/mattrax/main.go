@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 	mattrax "github.com/mattrax/Mattrax/internal"
+	"github.com/mattrax/Mattrax/internal/api"
 	"github.com/mattrax/Mattrax/internal/authentication"
 	"github.com/mattrax/Mattrax/internal/certificates"
 	"github.com/mattrax/Mattrax/internal/db"
@@ -64,6 +65,7 @@ func main() {
 	srv.GlobalRouter.Use(middleware.Logging())
 	srv.GlobalRouter.Use(middleware.Headers())
 	srv.Router = srv.GlobalRouter.Schemes("https").Host(args.Domain).Subrouter()
+	api.Mount(srv)
 	mdm.Mount(srv)
 
 	serve(args.Addr, args.Domain, args.TLSCert, args.TLSKey, nil, srv.GlobalRouter)

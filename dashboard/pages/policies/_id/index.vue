@@ -11,7 +11,7 @@
       </tr>
       <tr>
         <td>Managed Areas</td>
-        <td>{{ policy.payloads.join(', ') }}</td>
+        <!-- <td>{{ policy.payloads.join(', ') }}</td> -->
       </tr>
     </TableView>
   </div>

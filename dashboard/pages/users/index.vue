@@ -3,24 +3,15 @@
   <div v-else>
     <h1>Users</h1>
     <div class="filter-panel">
-      <input type="text" placeholder="Search..." />
+      <input type="text" placeholder="Search..." disabled />
     </div>
-    <TableView :headings="['UPN', 'Name', 'Devices']">
+    <TableView :headings="['UPN', 'Name']">
       <tr v-for="user in users" :key="user.upn">
         <td>
           <NuxtLink :to="'/users/' + user.upn" exact>{{ user.upn }}</NuxtLink>
         </td>
         <td>
-          {{ user.name }}
-        </td>
-        <td>
-          <NuxtLink
-            v-for="device in user.devices"
-            :key="device.id"
-            :to="'/devices/' + device.id"
-            class="table-list"
-            >{{ device.name }}</NuxtLink
-          >
+          {{ user.fullname }}
         </td>
       </tr>
     </TableView>

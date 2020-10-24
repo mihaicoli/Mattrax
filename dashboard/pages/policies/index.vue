@@ -3,7 +3,7 @@
   <div v-else>
     <h1>Policies</h1>
     <div class="filter-panel">
-      <input type="text" placeholder="Search..." />
+      <input type="text" placeholder="Search..." disabled />
     </div>
     <TableView :headings="['Name', 'Description', 'Payloads']">
       <tr v-for="policy in policies" :key="policy.id">
@@ -15,9 +15,9 @@
         <td>
           {{ policy.description }}
         </td>
-        <td>
+        <!-- <td>
           {{ policy.payloads.join(', ') }}
-        </td>
+        </td> -->
       </tr>
     </TableView>
   </div>

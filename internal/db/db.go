@@ -34,11 +34,23 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.deviceUserUnenrollmentStmt, err = db.PrepareContext(ctx, deviceUserUnenrollment); err != nil {
 		return nil, fmt.Errorf("error preparing query DeviceUserUnenrollment: %w", err)
 	}
+	if q.getBasicDeviceStmt, err = db.PrepareContext(ctx, getBasicDevice); err != nil {
+		return nil, fmt.Errorf("error preparing query GetBasicDevice: %w", err)
+	}
+	if q.getBasicDeviceScopedGroupsStmt, err = db.PrepareContext(ctx, getBasicDeviceScopedGroups); err != nil {
+		return nil, fmt.Errorf("error preparing query GetBasicDeviceScopedGroups: %w", err)
+	}
+	if q.getBasicDeviceScopedPoliciesStmt, err = db.PrepareContext(ctx, getBasicDeviceScopedPolicies); err != nil {
+		return nil, fmt.Errorf("error preparing query GetBasicDeviceScopedPolicies: %w", err)
+	}
 	if q.getDeviceStmt, err = db.PrepareContext(ctx, getDevice); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDevice: %w", err)
 	}
 	if q.getDeviceByUDIDStmt, err = db.PrepareContext(ctx, getDeviceByUDID); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDeviceByUDID: %w", err)
+	}
+	if q.getDevicesStmt, err = db.PrepareContext(ctx, getDevices); err != nil {
+		return nil, fmt.Errorf("error preparing query GetDevices: %w", err)
 	}
 	if q.getDevicesDetachedPayloadsStmt, err = db.PrepareContext(ctx, getDevicesDetachedPayloads); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDevicesDetachedPayloads: %w", err)
@@ -48,6 +60,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getDevicesPayloadsAwaitingDeploymentStmt, err = db.PrepareContext(ctx, getDevicesPayloadsAwaitingDeployment); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDevicesPayloadsAwaitingDeployment: %w", err)
+	}
+	if q.getPoliciesStmt, err = db.PrepareContext(ctx, getPolicies); err != nil {
+		return nil, fmt.Errorf("error preparing query GetPolicies: %w", err)
 	}
 	if q.getPoliciesPayloadsStmt, err = db.PrepareContext(ctx, getPoliciesPayloads); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPoliciesPayloads: %w", err)
@@ -60,6 +75,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getUserStmt, err = db.PrepareContext(ctx, getUser); err != nil {
 		return nil, fmt.Errorf("error preparing query GetUser: %w", err)
+	}
+	if q.getUserForLoginStmt, err = db.PrepareContext(ctx, getUserForLogin); err != nil {
+		return nil, fmt.Errorf("error preparing query GetUserForLogin: %w", err)
+	}
+	if q.getUsersStmt, err = db.PrepareContext(ctx, getUsers); err != nil {
+		return nil, fmt.Errorf("error preparing query GetUsers: %w", err)
 	}
 	if q.newAzureADUserStmt, err = db.PrepareContext(ctx, newAzureADUser); err != nil {
 		return nil, fmt.Errorf("error preparing query NewAzureADUser: %w", err)
@@ -113,6 +134,21 @@ func (q *Queries) Close() error {
 			err = fmt.Errorf("error closing deviceUserUnenrollmentStmt: %w", cerr)
 		}
 	}
+	if q.getBasicDeviceStmt != nil {
+		if cerr := q.getBasicDeviceStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getBasicDeviceStmt: %w", cerr)
+		}
+	}
+	if q.getBasicDeviceScopedGroupsStmt != nil {
+		if cerr := q.getBasicDeviceScopedGroupsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getBasicDeviceScopedGroupsStmt: %w", cerr)
+		}
+	}
+	if q.getBasicDeviceScopedPoliciesStmt != nil {
+		if cerr := q.getBasicDeviceScopedPoliciesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getBasicDeviceScopedPoliciesStmt: %w", cerr)
+		}
+	}
 	if q.getDeviceStmt != nil {
 		if cerr := q.getDeviceStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getDeviceStmt: %w", cerr)
@@ -121,6 +157,11 @@ func (q *Queries) Close() error {
 	if q.getDeviceByUDIDStmt != nil {
 		if cerr := q.getDeviceByUDIDStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getDeviceByUDIDStmt: %w", cerr)
+		}
+	}
+	if q.getDevicesStmt != nil {
+		if cerr := q.getDevicesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getDevicesStmt: %w", cerr)
 		}
 	}
 	if q.getDevicesDetachedPayloadsStmt != nil {
@@ -136,6 +177,11 @@ func (q *Queries) Close() error {
 	if q.getDevicesPayloadsAwaitingDeploymentStmt != nil {
 		if cerr := q.getDevicesPayloadsAwaitingDeploymentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getDevicesPayloadsAwaitingDeploymentStmt: %w", cerr)
+		}
+	}
+	if q.getPoliciesStmt != nil {
+		if cerr := q.getPoliciesStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getPoliciesStmt: %w", cerr)
 		}
 	}
 	if q.getPoliciesPayloadsStmt != nil {
@@ -156,6 +202,16 @@ func (q *Queries) Close() error {
 	if q.getUserStmt != nil {
 		if cerr := q.getUserStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getUserStmt: %w", cerr)
+		}
+	}
+	if q.getUserForLoginStmt != nil {
+		if cerr := q.getUserForLoginStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getUserForLoginStmt: %w", cerr)
+		}
+	}
+	if q.getUsersStmt != nil {
+		if cerr := q.getUsersStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getUsersStmt: %w", cerr)
 		}
 	}
 	if q.newAzureADUserStmt != nil {
@@ -246,15 +302,22 @@ type Queries struct {
 	deleteDeviceCacheNodeStmt                    *sql.Stmt
 	deviceCheckinStatusStmt                      *sql.Stmt
 	deviceUserUnenrollmentStmt                   *sql.Stmt
+	getBasicDeviceStmt                           *sql.Stmt
+	getBasicDeviceScopedGroupsStmt               *sql.Stmt
+	getBasicDeviceScopedPoliciesStmt             *sql.Stmt
 	getDeviceStmt                                *sql.Stmt
 	getDeviceByUDIDStmt                          *sql.Stmt
+	getDevicesStmt                               *sql.Stmt
 	getDevicesDetachedPayloadsStmt               *sql.Stmt
 	getDevicesPayloadsStmt                       *sql.Stmt
 	getDevicesPayloadsAwaitingDeploymentStmt     *sql.Stmt
+	getPoliciesStmt                              *sql.Stmt
 	getPoliciesPayloadsStmt                      *sql.Stmt
 	getPolicyStmt                                *sql.Stmt
 	getRawCertStmt                               *sql.Stmt
 	getUserStmt                                  *sql.Stmt
+	getUserForLoginStmt                          *sql.Stmt
+	getUsersStmt                                 *sql.Stmt
 	newAzureADUserStmt                           *sql.Stmt
 	newDeviceStmt                                *sql.Stmt
 	newDeviceCacheNodeStmt                       *sql.Stmt
@@ -274,15 +337,22 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		deleteDeviceCacheNodeStmt:                q.deleteDeviceCacheNodeStmt,
 		deviceCheckinStatusStmt:                  q.deviceCheckinStatusStmt,
 		deviceUserUnenrollmentStmt:               q.deviceUserUnenrollmentStmt,
+		getBasicDeviceStmt:                       q.getBasicDeviceStmt,
+		getBasicDeviceScopedGroupsStmt:           q.getBasicDeviceScopedGroupsStmt,
+		getBasicDeviceScopedPoliciesStmt:         q.getBasicDeviceScopedPoliciesStmt,
 		getDeviceStmt:                            q.getDeviceStmt,
 		getDeviceByUDIDStmt:                      q.getDeviceByUDIDStmt,
+		getDevicesStmt:                           q.getDevicesStmt,
 		getDevicesDetachedPayloadsStmt:           q.getDevicesDetachedPayloadsStmt,
 		getDevicesPayloadsStmt:                   q.getDevicesPayloadsStmt,
 		getDevicesPayloadsAwaitingDeploymentStmt: q.getDevicesPayloadsAwaitingDeploymentStmt,
+		getPoliciesStmt:                          q.getPoliciesStmt,
 		getPoliciesPayloadsStmt:                  q.getPoliciesPayloadsStmt,
 		getPolicyStmt:                            q.getPolicyStmt,
 		getRawCertStmt:                           q.getRawCertStmt,
 		getUserStmt:                              q.getUserStmt,
+		getUserForLoginStmt:                      q.getUserForLoginStmt,
+		getUsersStmt:                             q.getUsersStmt,
 		newAzureADUserStmt:                       q.newAzureADUserStmt,
 		newDeviceStmt:                            q.newDeviceStmt,
 		newDeviceCacheNodeStmt:                   q.newDeviceCacheNodeStmt,

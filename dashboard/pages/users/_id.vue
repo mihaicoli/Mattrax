@@ -1,11 +1,12 @@
 <template>
   <div v-if="loading" class="loading">Loading User...</div>
+  <div v-else-if="notfound" class="notfound">User Not Found</div>
   <div v-else>
     <div class="panel">
       <div class="panel-head">
         <h1>
           <UserIcon view-box="0 0 24 24" height="40" width="40" />{{
-            user.name
+            user.fullname
           }}
           ({{ user.upn }})
         </h1>
@@ -30,6 +31,7 @@ export default Vue.extend({
   data() {
     return {
       loading: true,
+      notfound: false,
       user: {},
     }
   },
@@ -37,7 +39,11 @@ export default Vue.extend({
     this.$store
       .dispatch('users/getByID', this.$route.params.id)
       .then((user) => {
-        this.user = user
+        if (user === null) {
+          this.notfound = true
+        } else {
+          this.user = user
+        }
         this.loading = false
       })
       .catch((err) => {

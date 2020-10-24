@@ -60,8 +60,113 @@ func (q *Queries) DeviceUserUnenrollment(ctx context.Context, id int32) error {
 	return err
 }
 
+const getBasicDevice = `-- name: GetBasicDevice :one
+SELECT id, name, description, model FROM devices WHERE id = $1 LIMIT 1
+`
+
+type GetBasicDeviceRow struct {
+	ID          int32          `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	Model       string         `json:"model"`
+}
+
+// Exposed via API
+func (q *Queries) GetBasicDevice(ctx context.Context, id int32) (GetBasicDeviceRow, error) {
+	row := q.queryRow(ctx, q.getBasicDeviceStmt, getBasicDevice, id)
+	var i GetBasicDeviceRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Model,
+	)
+	return i, err
+}
+
+const getBasicDeviceScopedGroups = `-- name: GetBasicDeviceScopedGroups :many
+SELECT groups.id, groups.name FROM groups INNER JOIN group_devices ON group_devices.group_id=groups.id WHERE group_devices.device_id = $1
+`
+
+type GetBasicDeviceScopedGroupsRow struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+}
+
+// Exposed via API
+func (q *Queries) GetBasicDeviceScopedGroups(ctx context.Context, deviceID int32) ([]GetBasicDeviceScopedGroupsRow, error) {
+	rows, err := q.query(ctx, q.getBasicDeviceScopedGroupsStmt, getBasicDeviceScopedGroups, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetBasicDeviceScopedGroupsRow
+	for rows.Next() {
+		var i GetBasicDeviceScopedGroupsRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBasicDeviceScopedPolicies = `-- name: GetBasicDeviceScopedPolicies :many
+SELECT id, name, description, priority, group_policies.group_id, policy_id, group_devices.group_id, device_id FROM policies INNER JOIN group_policies ON group_policies.policy_id = policies.id INNER JOIN group_devices ON group_devices.group_id=group_policies.group_id WHERE group_devices.device_id = $1
+`
+
+type GetBasicDeviceScopedPoliciesRow struct {
+	ID          int32         `json:"id"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
+	Priority    int16         `json:"priority"`
+	GroupID     sql.NullInt32 `json:"group_id"`
+	PolicyID    sql.NullInt32 `json:"policy_id"`
+	GroupID_2   int32         `json:"group_id_2"`
+	DeviceID    int32         `json:"device_id"`
+}
+
+// Exposed via API
+func (q *Queries) GetBasicDeviceScopedPolicies(ctx context.Context, deviceID int32) ([]GetBasicDeviceScopedPoliciesRow, error) {
+	rows, err := q.query(ctx, q.getBasicDeviceScopedPoliciesStmt, getBasicDeviceScopedPolicies, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetBasicDeviceScopedPoliciesRow
+	for rows.Next() {
+		var i GetBasicDeviceScopedPoliciesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Priority,
+			&i.GroupID,
+			&i.PolicyID,
+			&i.GroupID_2,
+			&i.DeviceID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDevice = `-- name: GetDevice :one
-SELECT id, udid, state, enrollment_type, name, model, hw_dev_id, operating_system, azure_did, nodecache_version, lastseen, lastseen_status, enrolled_at, enrolled_by FROM devices WHERE id = $1 LIMIT 1
+SELECT id, udid, state, enrollment_type, name, description, model, hw_dev_id, operating_system, azure_did, nodecache_version, lastseen, lastseen_status, enrolled_at, enrolled_by FROM devices WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetDevice(ctx context.Context, id int32) (Device, error) {
@@ -73,6 +178,7 @@ func (q *Queries) GetDevice(ctx context.Context, id int32) (Device, error) {
 		&i.State,
 		&i.EnrollmentType,
 		&i.Name,
+		&i.Description,
 		&i.Model,
 		&i.HwDevID,
 		&i.OperatingSystem,
@@ -87,7 +193,7 @@ func (q *Queries) GetDevice(ctx context.Context, id int32) (Device, error) {
 }
 
 const getDeviceByUDID = `-- name: GetDeviceByUDID :one
-SELECT id, udid, state, enrollment_type, name, model, hw_dev_id, operating_system, azure_did, nodecache_version, lastseen, lastseen_status, enrolled_at, enrolled_by FROM devices WHERE udid = $1 LIMIT 1
+SELECT id, udid, state, enrollment_type, name, description, model, hw_dev_id, operating_system, azure_did, nodecache_version, lastseen, lastseen_status, enrolled_at, enrolled_by FROM devices WHERE udid = $1 LIMIT 1
 `
 
 func (q *Queries) GetDeviceByUDID(ctx context.Context, udid string) (Device, error) {
@@ -99,6 +205,7 @@ func (q *Queries) GetDeviceByUDID(ctx context.Context, udid string) (Device, err
 		&i.State,
 		&i.EnrollmentType,
 		&i.Name,
+		&i.Description,
 		&i.Model,
 		&i.HwDevID,
 		&i.OperatingSystem,
@@ -110,6 +217,40 @@ func (q *Queries) GetDeviceByUDID(ctx context.Context, udid string) (Device, err
 		&i.EnrolledBy,
 	)
 	return i, err
+}
+
+const getDevices = `-- name: GetDevices :many
+SELECT id, name, model FROM devices LIMIT 100
+`
+
+type GetDevicesRow struct {
+	ID    int32  `json:"id"`
+	Name  string `json:"name"`
+	Model string `json:"model"`
+}
+
+// Exposed via API
+func (q *Queries) GetDevices(ctx context.Context) ([]GetDevicesRow, error) {
+	rows, err := q.query(ctx, q.getDevicesStmt, getDevices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetDevicesRow
+	for rows.Next() {
+		var i GetDevicesRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Model); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getDevicesDetachedPayloads = `-- name: GetDevicesDetachedPayloads :many
@@ -225,6 +366,41 @@ func (q *Queries) GetDevicesPayloadsAwaitingDeployment(ctx context.Context, devi
 	return items, nil
 }
 
+const getPolicies = `-- name: GetPolicies :many
+
+SELECT id, name FROM policies LIMIT 100
+`
+
+type GetPoliciesRow struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+}
+
+// TODO: Update or Replace
+// Exposed via API
+func (q *Queries) GetPolicies(ctx context.Context) ([]GetPoliciesRow, error) {
+	rows, err := q.query(ctx, q.getPoliciesStmt, getPolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPoliciesRow
+	for rows.Next() {
+		var i GetPoliciesRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPoliciesPayloads = `-- name: GetPoliciesPayloads :many
 SELECT id, policy_id, uri, format, type, value, exec FROM policies_payload WHERE policy_id = $1
 `
@@ -261,11 +437,10 @@ func (q *Queries) GetPoliciesPayloads(ctx context.Context, policyID sql.NullInt3
 }
 
 const getPolicy = `-- name: GetPolicy :one
-
 SELECT id, name, description, priority FROM policies WHERE id = $1 LIMIT 1
 `
 
-// TODO: Update or Replace
+// Exposed via API
 func (q *Queries) GetPolicy(ctx context.Context, id int32) (Policy, error) {
 	row := q.queryRow(ctx, q.getPolicyStmt, getPolicy, id)
 	var i Policy
@@ -295,26 +470,77 @@ func (q *Queries) GetRawCert(ctx context.Context, id string) (GetRawCertRow, err
 }
 
 const getUser = `-- name: GetUser :one
-
-SELECT upn, fullname, password, mfa_token, azuread_oid FROM users WHERE upn = $1 LIMIT 1
+SELECT upn, fullname, azuread_oid FROM users WHERE upn = $1 LIMIT 1
 `
 
-// DO NOT RUN THIS FILE. It is used along with sqlc to generate type safe Go from SQL
-func (q *Queries) GetUser(ctx context.Context, upn string) (User, error) {
+type GetUserRow struct {
+	Upn        string         `json:"upn"`
+	Fullname   string         `json:"fullname"`
+	AzureadOid sql.NullString `json:"azuread_oid"`
+}
+
+// Exposed via API
+func (q *Queries) GetUser(ctx context.Context, upn string) (GetUserRow, error) {
 	row := q.queryRow(ctx, q.getUserStmt, getUser, upn)
-	var i User
-	err := row.Scan(
-		&i.Upn,
-		&i.Fullname,
-		&i.Password,
-		&i.MfaToken,
-		&i.AzureadOid,
-	)
+	var i GetUserRow
+	err := row.Scan(&i.Upn, &i.Fullname, &i.AzureadOid)
 	return i, err
 }
 
+const getUserForLogin = `-- name: GetUserForLogin :one
+SELECT fullname, password, mfa_token FROM users WHERE upn = $1 LIMIT 1
+`
+
+type GetUserForLoginRow struct {
+	Fullname string         `json:"fullname"`
+	Password sql.NullString `json:"password"`
+	MfaToken sql.NullString `json:"mfa_token"`
+}
+
+func (q *Queries) GetUserForLogin(ctx context.Context, upn string) (GetUserForLoginRow, error) {
+	row := q.queryRow(ctx, q.getUserForLoginStmt, getUserForLogin, upn)
+	var i GetUserForLoginRow
+	err := row.Scan(&i.Fullname, &i.Password, &i.MfaToken)
+	return i, err
+}
+
+const getUsers = `-- name: GetUsers :many
+
+SELECT upn, fullname FROM users LIMIT 100
+`
+
+type GetUsersRow struct {
+	Upn      string `json:"upn"`
+	Fullname string `json:"fullname"`
+}
+
+// DO NOT RUN THIS FILE. It is used along with sqlc to generate type safe Go from SQL
+// Exposed via API
+func (q *Queries) GetUsers(ctx context.Context) ([]GetUsersRow, error) {
+	rows, err := q.query(ctx, q.getUsersStmt, getUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUsersRow
+	for rows.Next() {
+		var i GetUsersRow
+		if err := rows.Scan(&i.Upn, &i.Fullname); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const newAzureADUser = `-- name: NewAzureADUser :one
-INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, fullname, password, mfa_token, azuread_oid
+INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, fullname, azuread_oid
 `
 
 type NewAzureADUserParams struct {
@@ -323,16 +549,16 @@ type NewAzureADUserParams struct {
 	AzureadOid sql.NullString `json:"azuread_oid"`
 }
 
-func (q *Queries) NewAzureADUser(ctx context.Context, arg NewAzureADUserParams) (User, error) {
+type NewAzureADUserRow struct {
+	Upn        string         `json:"upn"`
+	Fullname   string         `json:"fullname"`
+	AzureadOid sql.NullString `json:"azuread_oid"`
+}
+
+func (q *Queries) NewAzureADUser(ctx context.Context, arg NewAzureADUserParams) (NewAzureADUserRow, error) {
 	row := q.queryRow(ctx, q.newAzureADUserStmt, newAzureADUser, arg.Upn, arg.Fullname, arg.AzureadOid)
-	var i User
-	err := row.Scan(
-		&i.Upn,
-		&i.Fullname,
-		&i.Password,
-		&i.MfaToken,
-		&i.AzureadOid,
-	)
+	var i NewAzureADUserRow
+	err := row.Scan(&i.Upn, &i.Fullname, &i.AzureadOid)
 	return i, err
 }
 

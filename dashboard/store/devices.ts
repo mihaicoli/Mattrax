@@ -1,9 +1,13 @@
 // TODO: Pagination, Filters
 
 export const actions = {
-  getAll(_context: any) {
+  getAll(context: any) {
     return new Promise((resolve, reject) => {
-      fetch('https://run.mocky.io/v3/0a624a65-eb2c-4ca5-aeb2-822e6397dfd0')
+      fetch(process.env.baseUrl + '/devices', {
+        headers: new Headers({
+          Authorization: 'Bearer ' + context.rootState.authentication.authToken,
+        }),
+      })
         .then(async (res) => {
           if (res.status !== 200) {
             reject(new Error('Error fetching devices from server'))
@@ -19,11 +23,18 @@ export const actions = {
         })
     })
   },
-  getByID(_context: any, _deviceID: string) {
+  getByID(context: any, deviceID: string) {
     return new Promise((resolve, reject) => {
-      fetch('https://run.mocky.io/v3/45a4d87a-92fc-4f30-9ca3-5ef2bf284385')
+      fetch(process.env.baseUrl + '/device/' + encodeURI(deviceID), {
+        headers: new Headers({
+          Authorization: 'Bearer ' + context.rootState.authentication.authToken,
+        }),
+      })
         .then(async (res) => {
-          if (res.status !== 200) {
+          if (res.status === 404) {
+            resolve(null)
+            return
+          } else if (res.status !== 200) {
             reject(new Error('Error fetching device from server'))
             return
           }
@@ -37,12 +48,19 @@ export const actions = {
         })
     })
   },
-  getInformationByID(_context: any, _deviceID: string) {
+  getInformationByID(context: any, deviceID: string) {
     return new Promise((resolve, reject) => {
-      fetch('https://run.mocky.io/v3/719e7183-bac2-4a5b-975c-5a2c51458d9d')
+      fetch(process.env.baseUrl + '/device/' + encodeURI(deviceID) + '/info', {
+        headers: new Headers({
+          Authorization: 'Bearer ' + context.rootState.authentication.authToken,
+        }),
+      })
         .then(async (res) => {
-          if (res.status !== 200) {
-            reject(new Error('Error fetching device from server'))
+          if (res.status === 404) {
+            resolve(null)
+            return
+          } else if (res.status !== 200) {
+            reject(new Error('Error fetching device information from server'))
             return
           }
 
@@ -55,12 +73,19 @@ export const actions = {
         })
     })
   },
-  getScopeByID(_context: any, _deviceID: string) {
+  getScopeByID(context: any, deviceID: string) {
     return new Promise((resolve, reject) => {
-      fetch('https://run.mocky.io/v3/1ae5b4e1-2a4a-49ea-aee4-f97274a1a371')
+      fetch(process.env.baseUrl + '/device/' + encodeURI(deviceID) + '/scope', {
+        headers: new Headers({
+          Authorization: 'Bearer ' + context.rootState.authentication.authToken,
+        }),
+      })
         .then(async (res) => {
-          if (res.status !== 200) {
-            reject(new Error('Error fetching device from server'))
+          if (res.status === 404) {
+            resolve(null)
+            return
+          } else if (res.status !== 200) {
+            reject(new Error('Error fetching device scope from server'))
             return
           }
 
