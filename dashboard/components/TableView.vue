@@ -6,7 +6,7 @@
       </tr>
     </thead>
     <tbody>
-      <slot></slot>
+      <slot />
     </tbody>
   </table>
 </template>
@@ -26,6 +26,10 @@ export default {
 .table {
   width: 100%;
   border: 1px solid #dee2e6;
+  border-radius: 10px;
+  background-color: #fff;
+  padding: 5px;
+  margin: 5px;
 }
 
 .table th {
@@ -39,8 +43,8 @@ export default {
   line-height: 1;
   white-space: nowrap;
   box-shadow: 0 1px 2px 0 rgba(50, 50, 50, 0.1);
-  background-color: #fff;
   font-weight: 700;
+  text-transform: uppercase;
 }
 
 .table td {

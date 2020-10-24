@@ -1,7 +1,10 @@
 <template>
   <div v-if="loading" class="loading">Loading Users...</div>
   <div v-else>
-    <h1>Users:</h1>
+    <h1>Users</h1>
+    <div class="filter-panel">
+      <input type="text" placeholder="Search..." />
+    </div>
     <TableView :headings="['UPN', 'Name', 'Devices']">
       <tr v-for="user in users" :key="user.upn">
         <td>

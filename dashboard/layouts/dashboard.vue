@@ -9,6 +9,8 @@
 </template>
 
 <style>
+@import url('https://fonts.googleapis.com/css?family=Raleway');
+
 :root {
   --primary-color: #0082c8;
   --primary-color-accent: #1d75b4;
@@ -22,6 +24,8 @@ body {
   font-weight: 300;
   height: 100vh;
   overflow: hidden;
+  /* background-color:#f9f1f1; */
+  background-color: #f2f2f2;
 }
 
 h1 {
@@ -51,5 +55,48 @@ main {
   margin: 50px 0 0 250px;
   padding: 5px;
   overflow-y: scroll;
+}
+
+.loading {
+  margin: 10px;
+}
+
+.filter-panel {
+  margin: 0 auto;
+  width: 100%;
+  border-radius: 10px;
+  background-color: #fff;
+  margin: 5px;
+  padding: 5px;
+}
+
+.panel {
+  margin: 0 auto;
+  width: 100%;
+  border-radius: 10px;
+  background-color: #fff;
+  margin: 5px;
+  padding: 5px;
+}
+
+.panel-head {
+  border-bottom: 1px solid grey;
+
+  font-weight: 700;
+}
+
+.panel-head svg {
+  vertical-align: middle;
+  margin-right: 7px;
+}
+
+.panel-head h1 {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: normal;
+}
+
+.subtitley {
+  font-size: 1em;
 }
 </style>

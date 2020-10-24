@@ -1,13 +1,22 @@
 <template>
   <div v-if="loading" class="loading">Loading User...</div>
   <div v-else>
-    <h1>User: {{ user.name }}</h1>
-    <h2>{{ user.upn }}</h2>
-    <div class="w3-bar w3-black">
+    <div class="panel">
+      <div class="panel-head">
+        <h1>
+          <UserIcon view-box="0 0 24 24" height="40" width="40" />{{
+            user.name
+          }}
+          ({{ user.upn }})
+        </h1>
+      </div>
+    </div>
+
+    <!-- <div class="w3-bar w3-black">
       <button class="w3-bar-item w3-button" @click="navigate('')">
         Overview
       </button>
-    </div>
+    </div> -->
     <NuxtChild />
   </div>
 </template>

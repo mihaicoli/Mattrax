@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h1>Metadata</h1>
+    <h1>Coming Soon!</h1>
   </div>
 </template>
 
