@@ -3,6 +3,7 @@
   <div v-else>
     <h1>Users</h1>
     <div class="filter-panel">
+      <button @click="$router.push('/users/new')">Create New User</button>
       <input type="text" placeholder="Search..." disabled />
     </div>
     <TableView :headings="['UPN', 'Name']">
@@ -37,9 +38,7 @@ export default Vue.extend({
         this.users = users
         this.loading = false
       })
-      .catch((err) => {
-        console.error(err)
-      })
+      .catch((err) => this.$store.commit('dashboard/setError', err))
   },
 })
 </script>

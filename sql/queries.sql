@@ -2,17 +2,21 @@
 
 -- name: GetUsers :many
 -- Exposed via API
-SELECT upn, fullname FROM users LIMIT 100;
+SELECT upn, fullname, permission_level FROM users LIMIT 100;
 
 -- name: GetUser :one
 -- Exposed via API
-SELECT upn, fullname, azuread_oid FROM users WHERE upn = $1 LIMIT 1;
+SELECT upn, fullname, azuread_oid, permission_level FROM users WHERE upn = $1 LIMIT 1;
 
 -- name: GetUserForLogin :one
 SELECT fullname, password, mfa_token FROM users WHERE upn = $1 LIMIT 1;
 
+-- name: CreateUser :exec
+-- Exposed via API
+INSERT INTO users(upn, fullname, password) VALUES ($1, $2, $3);
+
 -- name: NewAzureADUser :one
-INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, fullname, azuread_oid; -- TODO: Insert or Update
+INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, fullname, azuread_oid, permission_level; -- TODO: Insert or Update
 
 -- TODO: Merge all NewDevice functions to single query
 
@@ -49,6 +53,14 @@ SELECT groups.id, groups.name FROM groups INNER JOIN group_devices ON group_devi
 -- name: GetBasicDeviceScopedPolicies :many
 -- Exposed via API
 SELECT * FROM policies INNER JOIN group_policies ON group_policies.policy_id = policies.id INNER JOIN group_devices ON group_devices.group_id=group_policies.group_id WHERE group_devices.device_id = $1;
+
+-- name: GetGroups :many
+-- Exposed via API
+SELECT id, name, description, priority FROM groups LIMIT 100;
+
+-- name: GetGroup :one
+-- Exposed via API
+SELECT id, name, description, priority FROM groups WHERE id = $1 LIMIT 1;
 
 -- name: GetDevice :one
 SELECT * FROM devices WHERE id = $1 LIMIT 1;

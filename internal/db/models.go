@@ -49,6 +49,25 @@ func (e *EnrollmentType) Scan(src interface{}) error {
 	return nil
 }
 
+type UserPermissionLevel string
+
+const (
+	UserPermissionLevelUser          UserPermissionLevel = "user"
+	UserPermissionLevelAdministrator UserPermissionLevel = "administrator"
+)
+
+func (e *UserPermissionLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserPermissionLevel(s)
+	case string:
+		*e = UserPermissionLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserPermissionLevel: %T", src)
+	}
+	return nil
+}
+
 type Certificate struct {
 	ID   string `json:"id"`
 	Cert []byte `json:"cert"`
@@ -135,9 +154,10 @@ type Setting struct {
 }
 
 type User struct {
-	Upn        string         `json:"upn"`
-	Fullname   string         `json:"fullname"`
-	Password   sql.NullString `json:"password"`
-	MfaToken   sql.NullString `json:"mfa_token"`
-	AzureadOid sql.NullString `json:"azuread_oid"`
+	Upn             string              `json:"upn"`
+	Fullname        string              `json:"fullname"`
+	Password        sql.NullString      `json:"password"`
+	MfaToken        sql.NullString      `json:"mfa_token"`
+	AzureadOid      sql.NullString      `json:"azuread_oid"`
+	PermissionLevel UserPermissionLevel `json:"permission_level"`
 }

@@ -24,8 +24,10 @@ func Mount(srv *mattrax.Server) {
 	rAuthed.HandleFunc("/device/{id}", Device(srv)).Methods(http.MethodGet, http.MethodOptions)
 	rAuthed.HandleFunc("/device/{id}/info", DeviceInformation(srv)).Methods(http.MethodGet, http.MethodOptions)
 	rAuthed.HandleFunc("/device/{id}/scope", DeviceScope(srv)).Methods(http.MethodGet, http.MethodOptions)
+	rAuthed.HandleFunc("/groups", Groups(srv)).Methods(http.MethodGet, http.MethodOptions)
+	rAuthed.HandleFunc("/group/{id}", Group(srv)).Methods(http.MethodGet, http.MethodOptions)
 	rAuthed.HandleFunc("/policies", Policies(srv)).Methods(http.MethodGet, http.MethodOptions)
 	rAuthed.HandleFunc("/policy/{id}", Policy(srv)).Methods(http.MethodGet, http.MethodOptions)
-	rAuthed.HandleFunc("/users", Users(srv)).Methods(http.MethodGet, http.MethodOptions)
+	rAuthed.HandleFunc("/users", Users(srv)).Methods(http.MethodGet, http.MethodPost, http.MethodOptions)
 	rAuthed.HandleFunc("/user/{upn}", User(srv)).Methods(http.MethodGet, http.MethodOptions)
 }

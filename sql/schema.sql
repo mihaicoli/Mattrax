@@ -1,9 +1,12 @@
+CREATE TYPE user_permission_level AS ENUM ('user', 'administrator');
+
 CREATE TABLE users (
     upn TEXT PRIMARY KEY,
     fullname TEXT NOT NULL,
     password TEXT,
     mfa_token TEXT,
-    azuread_oid TEXT UNIQUE
+    azuread_oid TEXT UNIQUE,
+    permission_level user_permission_level NOT NULL DEFAULT 'user'
 );
 
 CREATE TYPE device_state AS ENUM ('deploying', 'managed', 'user_unenrolled', 'missing');

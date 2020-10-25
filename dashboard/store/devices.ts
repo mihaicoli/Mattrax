@@ -1,4 +1,5 @@
 // TODO: Pagination, Filters
+import { errorForStatus } from './errors'
 
 export const actions = {
   getAll(context: any) {
@@ -10,7 +11,7 @@ export const actions = {
       })
         .then(async (res) => {
           if (res.status !== 200) {
-            reject(new Error('Error fetching devices from server'))
+            reject(errorForStatus(res, 'Error fetching devices from server'))
             return
           }
 
@@ -31,11 +32,8 @@ export const actions = {
         }),
       })
         .then(async (res) => {
-          if (res.status === 404) {
-            resolve(null)
-            return
-          } else if (res.status !== 200) {
-            reject(new Error('Error fetching device from server'))
+          if (res.status !== 200) {
+            reject(errorForStatus(res, 'Error fetching device from server'))
             return
           }
 
@@ -56,11 +54,13 @@ export const actions = {
         }),
       })
         .then(async (res) => {
-          if (res.status === 404) {
-            resolve(null)
-            return
-          } else if (res.status !== 200) {
-            reject(new Error('Error fetching device information from server'))
+          if (res.status !== 200) {
+            reject(
+              errorForStatus(
+                res,
+                'Error fetching device information from server'
+              )
+            )
             return
           }
 
@@ -81,11 +81,10 @@ export const actions = {
         }),
       })
         .then(async (res) => {
-          if (res.status === 404) {
-            resolve(null)
-            return
-          } else if (res.status !== 200) {
-            reject(new Error('Error fetching device scope from server'))
+          if (res.status !== 200) {
+            reject(
+              errorForStatus(res, 'Error fetching device scope from server')
+            )
             return
           }
 

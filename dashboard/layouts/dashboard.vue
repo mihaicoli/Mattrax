@@ -3,7 +3,11 @@
     <Header />
     <Sidebar />
     <main>
-      <Nuxt />
+      <div v-if="$store.state.dashboard.error">
+        <h1>An Error Occured</h1>
+        <p>{{ $store.state.dashboard.error }}</p>
+      </div>
+      <Nuxt v-else />
     </main>
   </div>
 </template>

@@ -1,13 +1,10 @@
 <template>
-  <div v-if="loading" class="loading">Loading User...</div>
+  <div v-if="loading" class="loading">Loading Group...</div>
   <div v-else>
     <div class="panel">
       <div class="panel-head">
         <h1>
-          <UserIcon view-box="0 0 24 24" height="40" width="40" />{{
-            user.fullname
-          }}
-          ({{ user.upn }})
+          <GridIcon view-box="0 0 8 8" height="33" width="33" />{{ group.name }}
         </h1>
       </div>
     </div>
@@ -30,21 +27,21 @@ export default Vue.extend({
   data() {
     return {
       loading: true,
-      user: {},
+      group: {},
     }
   },
   created() {
     this.$store
-      .dispatch('users/getByID', this.$route.params.id)
-      .then((user) => {
-        this.user = user
+      .dispatch('groups/getByID', this.$route.params.id)
+      .then((group) => {
+        this.group = group
         this.loading = false
       })
       .catch((err) => this.$store.commit('dashboard/setError', err))
   },
   methods: {
     navigate(pathSuffix: string) {
-      this.$router.push('/users/' + this.$route.params.id + pathSuffix)
+      this.$router.push('/groups/' + this.$route.params.id + pathSuffix)
     },
   },
 })

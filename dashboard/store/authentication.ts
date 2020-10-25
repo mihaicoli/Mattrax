@@ -1,3 +1,5 @@
+import { errorForStatus } from './errors'
+
 export interface LoginRequest {
   upn: string
   password: string
@@ -73,7 +75,7 @@ export const actions = {
       })
         .then(async (res) => {
           if (res.status !== 200) {
-            reject(new Error('The login request was rejected'))
+            reject(errorForStatus(res, 'The login request was rejected'))
             return
           }
 
@@ -87,5 +89,11 @@ export const actions = {
           reject(new Error('An error occurred communicating with the server'))
         })
     })
+  },
+
+  logout(context: any) {
+    sessionStorage.removeItem('authToken')
+    context.commit('setAuthToken', null)
+    context.commit('setUserInformation', {})
   },
 }

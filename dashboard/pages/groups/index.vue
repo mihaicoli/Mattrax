@@ -1,23 +1,18 @@
 <template>
-  <div v-if="loading" class="loading">Loading Policies...</div>
+  <div v-if="loading" class="loading">Loading Groups...</div>
   <div v-else>
-    <h1>Policies</h1>
+    <h1>Groups</h1>
     <div class="filter-panel">
       <input type="text" placeholder="Search..." disabled />
     </div>
-    <TableView :headings="['Name', 'Description', 'Payloads']">
-      <tr v-for="policy in policies" :key="policy.id">
+    <TableView :headings="['ID', 'Name']">
+      <tr v-for="group in groups" :key="group.id">
         <td>
-          <NuxtLink :to="'/policies/' + policy.id" exact>{{
-            policy.name
-          }}</NuxtLink>
+          <NuxtLink :to="'/groups/' + group.id" exact>{{ group.id }}</NuxtLink>
         </td>
         <td>
-          {{ policy.description }}
+          {{ group.name }}
         </td>
-        <!-- <td>
-          {{ policy.payloads.join(', ') }}
-        </td> -->
       </tr>
     </TableView>
   </div>
@@ -32,14 +27,14 @@ export default Vue.extend({
   data() {
     return {
       loading: true,
-      policies: [],
+      groups: [],
     }
   },
   created() {
     this.$store
-      .dispatch('policies/getAll')
-      .then((policies) => {
-        this.policies = policies
+      .dispatch('groups/getAll')
+      .then((groups) => {
+        this.groups = groups
         this.loading = false
       })
       .catch((err) => this.$store.commit('dashboard/setError', err))

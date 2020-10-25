@@ -23,6 +23,22 @@ func (q *Queries) CreateRawCert(ctx context.Context, arg CreateRawCertParams) er
 	return err
 }
 
+const createUser = `-- name: CreateUser :exec
+INSERT INTO users(upn, fullname, password) VALUES ($1, $2, $3)
+`
+
+type CreateUserParams struct {
+	Upn      string         `json:"upn"`
+	Fullname string         `json:"fullname"`
+	Password sql.NullString `json:"password"`
+}
+
+// Exposed via API
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
+	_, err := q.exec(ctx, q.createUserStmt, createUser, arg.Upn, arg.Fullname, arg.Password)
+	return err
+}
+
 const deleteDeviceCacheNode = `-- name: DeleteDeviceCacheNode :exec
 DELETE FROM device_cache WHERE device_id = $1 AND payload_id = $2
 `
@@ -366,6 +382,56 @@ func (q *Queries) GetDevicesPayloadsAwaitingDeployment(ctx context.Context, devi
 	return items, nil
 }
 
+const getGroup = `-- name: GetGroup :one
+SELECT id, name, description, priority FROM groups WHERE id = $1 LIMIT 1
+`
+
+// Exposed via API
+func (q *Queries) GetGroup(ctx context.Context, id int32) (Group, error) {
+	row := q.queryRow(ctx, q.getGroupStmt, getGroup, id)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Priority,
+	)
+	return i, err
+}
+
+const getGroups = `-- name: GetGroups :many
+SELECT id, name, description, priority FROM groups LIMIT 100
+`
+
+// Exposed via API
+func (q *Queries) GetGroups(ctx context.Context) ([]Group, error) {
+	rows, err := q.query(ctx, q.getGroupsStmt, getGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Priority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPolicies = `-- name: GetPolicies :many
 
 SELECT id, name FROM policies LIMIT 100
@@ -470,20 +536,26 @@ func (q *Queries) GetRawCert(ctx context.Context, id string) (GetRawCertRow, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT upn, fullname, azuread_oid FROM users WHERE upn = $1 LIMIT 1
+SELECT upn, fullname, azuread_oid, permission_level FROM users WHERE upn = $1 LIMIT 1
 `
 
 type GetUserRow struct {
-	Upn        string         `json:"upn"`
-	Fullname   string         `json:"fullname"`
-	AzureadOid sql.NullString `json:"azuread_oid"`
+	Upn             string              `json:"upn"`
+	Fullname        string              `json:"fullname"`
+	AzureadOid      sql.NullString      `json:"azuread_oid"`
+	PermissionLevel UserPermissionLevel `json:"permission_level"`
 }
 
 // Exposed via API
 func (q *Queries) GetUser(ctx context.Context, upn string) (GetUserRow, error) {
 	row := q.queryRow(ctx, q.getUserStmt, getUser, upn)
 	var i GetUserRow
-	err := row.Scan(&i.Upn, &i.Fullname, &i.AzureadOid)
+	err := row.Scan(
+		&i.Upn,
+		&i.Fullname,
+		&i.AzureadOid,
+		&i.PermissionLevel,
+	)
 	return i, err
 }
 
@@ -506,12 +578,13 @@ func (q *Queries) GetUserForLogin(ctx context.Context, upn string) (GetUserForLo
 
 const getUsers = `-- name: GetUsers :many
 
-SELECT upn, fullname FROM users LIMIT 100
+SELECT upn, fullname, permission_level FROM users LIMIT 100
 `
 
 type GetUsersRow struct {
-	Upn      string `json:"upn"`
-	Fullname string `json:"fullname"`
+	Upn             string              `json:"upn"`
+	Fullname        string              `json:"fullname"`
+	PermissionLevel UserPermissionLevel `json:"permission_level"`
 }
 
 // DO NOT RUN THIS FILE. It is used along with sqlc to generate type safe Go from SQL
@@ -525,7 +598,7 @@ func (q *Queries) GetUsers(ctx context.Context) ([]GetUsersRow, error) {
 	var items []GetUsersRow
 	for rows.Next() {
 		var i GetUsersRow
-		if err := rows.Scan(&i.Upn, &i.Fullname); err != nil {
+		if err := rows.Scan(&i.Upn, &i.Fullname, &i.PermissionLevel); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -540,7 +613,7 @@ func (q *Queries) GetUsers(ctx context.Context) ([]GetUsersRow, error) {
 }
 
 const newAzureADUser = `-- name: NewAzureADUser :one
-INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, fullname, azuread_oid
+INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, fullname, azuread_oid, permission_level
 `
 
 type NewAzureADUserParams struct {
@@ -550,15 +623,21 @@ type NewAzureADUserParams struct {
 }
 
 type NewAzureADUserRow struct {
-	Upn        string         `json:"upn"`
-	Fullname   string         `json:"fullname"`
-	AzureadOid sql.NullString `json:"azuread_oid"`
+	Upn             string              `json:"upn"`
+	Fullname        string              `json:"fullname"`
+	AzureadOid      sql.NullString      `json:"azuread_oid"`
+	PermissionLevel UserPermissionLevel `json:"permission_level"`
 }
 
 func (q *Queries) NewAzureADUser(ctx context.Context, arg NewAzureADUserParams) (NewAzureADUserRow, error) {
 	row := q.queryRow(ctx, q.newAzureADUserStmt, newAzureADUser, arg.Upn, arg.Fullname, arg.AzureadOid)
 	var i NewAzureADUserRow
-	err := row.Scan(&i.Upn, &i.Fullname, &i.AzureadOid)
+	err := row.Scan(
+		&i.Upn,
+		&i.Fullname,
+		&i.AzureadOid,
+		&i.PermissionLevel,
+	)
 	return i, err
 }
 

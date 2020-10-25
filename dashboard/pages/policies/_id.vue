@@ -1,6 +1,5 @@
 <template>
   <div v-if="loading" class="loading">Loading Policy...</div>
-  <div v-else-if="notfound" class="notfound">Policy Not Found</div>
   <div v-else>
     <div class="panel">
       <div class="panel-head">
@@ -36,7 +35,6 @@ export default Vue.extend({
   data() {
     return {
       loading: true,
-      notfound: false,
       policy: {},
     }
   },
@@ -44,16 +42,10 @@ export default Vue.extend({
     this.$store
       .dispatch('policies/getByID', this.$route.params.id)
       .then((policy) => {
-        if (policy === null) {
-          this.notfound = true
-        } else {
-          this.policy = policy
-        }
+        this.policy = policy
         this.loading = false
       })
-      .catch((err) => {
-        console.error(err)
-      })
+      .catch((err) => this.$store.commit('dashboard/setError', err))
   },
   methods: {
     navigate(pathSuffix: string) {

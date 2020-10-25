@@ -25,6 +25,9 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	if q.createRawCertStmt, err = db.PrepareContext(ctx, createRawCert); err != nil {
 		return nil, fmt.Errorf("error preparing query CreateRawCert: %w", err)
 	}
+	if q.createUserStmt, err = db.PrepareContext(ctx, createUser); err != nil {
+		return nil, fmt.Errorf("error preparing query CreateUser: %w", err)
+	}
 	if q.deleteDeviceCacheNodeStmt, err = db.PrepareContext(ctx, deleteDeviceCacheNode); err != nil {
 		return nil, fmt.Errorf("error preparing query DeleteDeviceCacheNode: %w", err)
 	}
@@ -60,6 +63,12 @@ func Prepare(ctx context.Context, db DBTX) (*Queries, error) {
 	}
 	if q.getDevicesPayloadsAwaitingDeploymentStmt, err = db.PrepareContext(ctx, getDevicesPayloadsAwaitingDeployment); err != nil {
 		return nil, fmt.Errorf("error preparing query GetDevicesPayloadsAwaitingDeployment: %w", err)
+	}
+	if q.getGroupStmt, err = db.PrepareContext(ctx, getGroup); err != nil {
+		return nil, fmt.Errorf("error preparing query GetGroup: %w", err)
+	}
+	if q.getGroupsStmt, err = db.PrepareContext(ctx, getGroups); err != nil {
+		return nil, fmt.Errorf("error preparing query GetGroups: %w", err)
 	}
 	if q.getPoliciesStmt, err = db.PrepareContext(ctx, getPolicies); err != nil {
 		return nil, fmt.Errorf("error preparing query GetPolicies: %w", err)
@@ -117,6 +126,11 @@ func (q *Queries) Close() error {
 	if q.createRawCertStmt != nil {
 		if cerr := q.createRawCertStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing createRawCertStmt: %w", cerr)
+		}
+	}
+	if q.createUserStmt != nil {
+		if cerr := q.createUserStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing createUserStmt: %w", cerr)
 		}
 	}
 	if q.deleteDeviceCacheNodeStmt != nil {
@@ -177,6 +191,16 @@ func (q *Queries) Close() error {
 	if q.getDevicesPayloadsAwaitingDeploymentStmt != nil {
 		if cerr := q.getDevicesPayloadsAwaitingDeploymentStmt.Close(); cerr != nil {
 			err = fmt.Errorf("error closing getDevicesPayloadsAwaitingDeploymentStmt: %w", cerr)
+		}
+	}
+	if q.getGroupStmt != nil {
+		if cerr := q.getGroupStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getGroupStmt: %w", cerr)
+		}
+	}
+	if q.getGroupsStmt != nil {
+		if cerr := q.getGroupsStmt.Close(); cerr != nil {
+			err = fmt.Errorf("error closing getGroupsStmt: %w", cerr)
 		}
 	}
 	if q.getPoliciesStmt != nil {
@@ -299,6 +323,7 @@ type Queries struct {
 	db                                           DBTX
 	tx                                           *sql.Tx
 	createRawCertStmt                            *sql.Stmt
+	createUserStmt                               *sql.Stmt
 	deleteDeviceCacheNodeStmt                    *sql.Stmt
 	deviceCheckinStatusStmt                      *sql.Stmt
 	deviceUserUnenrollmentStmt                   *sql.Stmt
@@ -311,6 +336,8 @@ type Queries struct {
 	getDevicesDetachedPayloadsStmt               *sql.Stmt
 	getDevicesPayloadsStmt                       *sql.Stmt
 	getDevicesPayloadsAwaitingDeploymentStmt     *sql.Stmt
+	getGroupStmt                                 *sql.Stmt
+	getGroupsStmt                                *sql.Stmt
 	getPoliciesStmt                              *sql.Stmt
 	getPoliciesPayloadsStmt                      *sql.Stmt
 	getPolicyStmt                                *sql.Stmt
@@ -334,6 +361,7 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		db:                                       tx,
 		tx:                                       tx,
 		createRawCertStmt:                        q.createRawCertStmt,
+		createUserStmt:                           q.createUserStmt,
 		deleteDeviceCacheNodeStmt:                q.deleteDeviceCacheNodeStmt,
 		deviceCheckinStatusStmt:                  q.deviceCheckinStatusStmt,
 		deviceUserUnenrollmentStmt:               q.deviceUserUnenrollmentStmt,
@@ -346,6 +374,8 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
 		getDevicesDetachedPayloadsStmt:           q.getDevicesDetachedPayloadsStmt,
 		getDevicesPayloadsStmt:                   q.getDevicesPayloadsStmt,
 		getDevicesPayloadsAwaitingDeploymentStmt: q.getDevicesPayloadsAwaitingDeploymentStmt,
+		getGroupStmt:                             q.getGroupStmt,
+		getGroupsStmt:                            q.getGroupsStmt,
 		getPoliciesStmt:                          q.getPoliciesStmt,
 		getPoliciesPayloadsStmt:                  q.getPoliciesPayloadsStmt,
 		getPolicyStmt:                            q.getPolicyStmt,

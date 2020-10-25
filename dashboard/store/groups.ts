@@ -4,19 +4,19 @@ import { errorForStatus } from './errors'
 export const actions = {
   getAll(context: any) {
     return new Promise((resolve, reject) => {
-      fetch(process.env.baseUrl + '/policies', {
+      fetch(process.env.baseUrl + '/groups', {
         headers: new Headers({
           Authorization: 'Bearer ' + context.rootState.authentication.authToken,
         }),
       })
         .then(async (res) => {
           if (res.status !== 200) {
-            reject(errorForStatus(res, 'Error fetching policies from server'))
+            reject(errorForStatus(res, 'Error fetching groups from server'))
             return
           }
 
-          const policies = await res.json()
-          resolve(policies)
+          const groups = await res.json()
+          resolve(groups)
         })
         .catch((err) => {
           console.error(err)
@@ -24,21 +24,21 @@ export const actions = {
         })
     })
   },
-  getByID(context: any, policyID: string) {
+  getByID(context: any, groupID: string) {
     return new Promise((resolve, reject) => {
-      fetch(process.env.baseUrl + '/policy/' + encodeURI(policyID), {
+      fetch(process.env.baseUrl + '/group/' + encodeURI(groupID), {
         headers: new Headers({
           Authorization: 'Bearer ' + context.rootState.authentication.authToken,
         }),
       })
         .then(async (res) => {
           if (res.status !== 200) {
-            reject(errorForStatus(res, 'Error fetching policy from server'))
+            reject(errorForStatus(res, 'Error fetching group from server'))
             return
           }
 
-          const policy = await res.json()
-          resolve(policy)
+          const group = await res.json()
+          resolve(group)
         })
         .catch((err) => {
           console.error(err)

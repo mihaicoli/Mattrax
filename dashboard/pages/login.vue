@@ -37,12 +37,8 @@ export default Vue.extend({
           upn: this.upn,
           password: this.password,
         })
-        .then(() => {
-          this.$router.push('/')
-        })
-        .catch((err) => {
-          console.error(err)
-        })
+        .then(() => this.$router.push('/'))
+        .catch((err) => this.$store.commit('dashboard/setError', err))
     },
   },
 })

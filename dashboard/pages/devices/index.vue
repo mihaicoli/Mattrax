@@ -51,9 +51,7 @@ export default Vue.extend({
         this.devices = devices
         this.loading = false
       })
-      .catch((err) => {
-        console.error(err)
-      })
+      .catch((err) => this.$store.commit('dashboard/setError', err))
   },
 })
 </script>
