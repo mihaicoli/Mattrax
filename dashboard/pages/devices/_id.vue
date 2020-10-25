@@ -37,7 +37,6 @@ import Vue from 'vue'
 
 export default Vue.extend({
   layout: 'dashboard',
-  middleware: ['auth'],
   data() {
     return {
       loading: true,

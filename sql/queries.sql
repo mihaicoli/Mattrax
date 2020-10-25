@@ -9,7 +9,7 @@ SELECT upn, fullname, permission_level FROM users LIMIT 100;
 SELECT upn, fullname, azuread_oid, permission_level FROM users WHERE upn = $1 LIMIT 1;
 
 -- name: GetUserForLogin :one
-SELECT fullname, password, mfa_token FROM users WHERE upn = $1 LIMIT 1;
+SELECT fullname, password, mfa_token, permission_level FROM users WHERE upn = $1 LIMIT 1;
 
 -- name: CreateUser :exec
 -- Exposed via API

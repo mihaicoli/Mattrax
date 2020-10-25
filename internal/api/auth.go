@@ -5,8 +5,11 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/mattrax/Mattrax/internal/db"
+
 	mattrax "github.com/mattrax/Mattrax/internal"
 	"github.com/mattrax/Mattrax/internal/authentication"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func Login(srv *mattrax.Server) http.HandlerFunc {
@@ -33,18 +36,34 @@ func Login(srv *mattrax.Server) http.HandlerFunc {
 			return
 		}
 
-		if !user.Password.Valid || user.Password.String != cmd.Password {
+		if !user.Password.Valid {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 
-		authToken, _, err := srv.Auth.IssueToken(authentication.AuthClaims{
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password.String), []byte(cmd.Password)); err == bcrypt.ErrMismatchedHashAndPassword {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		} else if err != nil {
+			log.Printf("[CompareHashAndPassword Error]: %s\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var audience string
+		if user.PermissionLevel == db.UserPermissionLevelAdministrator {
+			audience = "dashboard"
+		} else {
+			audience = "enrollment"
+		}
+
+		authToken, _, err := srv.Auth.IssueToken(audience, authentication.AuthClaims{
 			Subject:      cmd.UPN,
 			FullName:     user.Fullname,
 			Organisation: srv.Settings.Get().TenantName,
 		})
 		if err != nil {
-			// log.Error().Err(err).Str("upn", cmd.UPN).Msg("Failed to sign JWT")
+			log.Printf("[IssueToken Error]: %s\n", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

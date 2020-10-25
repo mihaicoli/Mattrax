@@ -1,18 +1,25 @@
 <template>
-  <div>
-    <form class="login" @submit.prevent="login">
-      <h1>Sign in</h1>
-      <label>Email</label>
+  <div class="page-content">
+    <div v-if="loading" class="loading">Checking Login...</div>
+    <form v-else @submit.prevent="login" class="form">
+      <p v-if="errorTxt" class="error-msg">{{ errorTxt }}</p>
       <input
-        v-model="upn"
+        v-model="user.upn"
+        v-on:input="errorTxt = null"
         required
         type="email"
-        placeholder="user@example.com"
+        placeholder="chris@otbeaumont.me"
+        autocomplete="username"
       />
-      <label>Password</label>
-      <input v-model="password" type="password" placeholder="password" />
-      <hr />
-      <button type="submit">Login</button>
+      <input
+        v-model="user.password"
+        v-on:input="errorTxt = null"
+        required
+        type="password"
+        placeholder="password"
+        autocomplete="current-password"
+      />
+      <button>LOGIN</button>
     </form>
   </div>
 </template>
@@ -20,28 +27,60 @@
 <script lang="ts">
 import Vue from 'vue'
 
-// TODO: Password manager help, warning on login error
-
 export default Vue.extend({
   data() {
     return {
-      upn: '',
-      password: '',
-      errorTxt: '',
+      loading: false,
+      errorTxt: null,
+      user: {
+        upn: '',
+        password: '',
+      },
     }
   },
   methods: {
     login() {
+      this.loading = true
       this.$store
-        .dispatch('authentication/login', {
-          upn: this.upn,
-          password: this.password,
+        .dispatch('authentication/login', this.user)
+        .then(() => {
+          if (this.$store.state.authentication.user.aud === 'dashboard') {
+            this.$router.push(
+              this.$route.query?.redirect_to !== undefined
+                ? <string>this.$route.query?.redirect_to
+                : '/'
+            )
+          } else if (
+            this.$store.state.authentication.user.aud === 'enrollment'
+          ) {
+            this.$router.push('/enroll')
+          } else {
+            console.error(new Error('Unknown authentication token audience'))
+          }
         })
-        .then(() => this.$router.push('/'))
-        .catch((err) => this.$store.commit('dashboard/setError', err))
+        .catch((err) => {
+          this.loading = false
+          this.errorTxt = err
+        })
     },
   },
 })
 </script>
 
-<style></style>
+<style scoped>
+.form input {
+  outline: 0;
+  background: #f2f2f2;
+  width: 100%;
+  border: 0;
+  margin: 0 0 15px;
+  padding: 15px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+.form .error-msg {
+  margin-bottom: 5px;
+  color: red;
+  font-size: 13px;
+}
+</style>

@@ -6,6 +6,8 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/mattrax/Mattrax/pkg/null"
 )
 
 const createRawCert = `-- name: CreateRawCert :exec
@@ -28,9 +30,9 @@ INSERT INTO users(upn, fullname, password) VALUES ($1, $2, $3)
 `
 
 type CreateUserParams struct {
-	Upn      string         `json:"upn"`
-	Fullname string         `json:"fullname"`
-	Password sql.NullString `json:"password"`
+	Upn      string      `json:"upn"`
+	Fullname string      `json:"fullname"`
+	Password null.String `json:"password"`
 }
 
 // Exposed via API
@@ -81,10 +83,10 @@ SELECT id, name, description, model FROM devices WHERE id = $1 LIMIT 1
 `
 
 type GetBasicDeviceRow struct {
-	ID          int32          `json:"id"`
-	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	Model       string         `json:"model"`
+	ID          int32       `json:"id"`
+	Name        string      `json:"name"`
+	Description null.String `json:"description"`
+	Model       string      `json:"model"`
 }
 
 // Exposed via API
@@ -542,7 +544,7 @@ SELECT upn, fullname, azuread_oid, permission_level FROM users WHERE upn = $1 LI
 type GetUserRow struct {
 	Upn             string              `json:"upn"`
 	Fullname        string              `json:"fullname"`
-	AzureadOid      sql.NullString      `json:"azuread_oid"`
+	AzureadOid      null.String         `json:"azuread_oid"`
 	PermissionLevel UserPermissionLevel `json:"permission_level"`
 }
 
@@ -560,19 +562,25 @@ func (q *Queries) GetUser(ctx context.Context, upn string) (GetUserRow, error) {
 }
 
 const getUserForLogin = `-- name: GetUserForLogin :one
-SELECT fullname, password, mfa_token FROM users WHERE upn = $1 LIMIT 1
+SELECT fullname, password, mfa_token, permission_level FROM users WHERE upn = $1 LIMIT 1
 `
 
 type GetUserForLoginRow struct {
-	Fullname string         `json:"fullname"`
-	Password sql.NullString `json:"password"`
-	MfaToken sql.NullString `json:"mfa_token"`
+	Fullname        string              `json:"fullname"`
+	Password        null.String         `json:"password"`
+	MfaToken        null.String         `json:"mfa_token"`
+	PermissionLevel UserPermissionLevel `json:"permission_level"`
 }
 
 func (q *Queries) GetUserForLogin(ctx context.Context, upn string) (GetUserForLoginRow, error) {
 	row := q.queryRow(ctx, q.getUserForLoginStmt, getUserForLogin, upn)
 	var i GetUserForLoginRow
-	err := row.Scan(&i.Fullname, &i.Password, &i.MfaToken)
+	err := row.Scan(
+		&i.Fullname,
+		&i.Password,
+		&i.MfaToken,
+		&i.PermissionLevel,
+	)
 	return i, err
 }
 
@@ -617,15 +625,15 @@ INSERT INTO users(upn, fullname, azuread_oid) VALUES($1, $2, $3) RETURNING upn, 
 `
 
 type NewAzureADUserParams struct {
-	Upn        string         `json:"upn"`
-	Fullname   string         `json:"fullname"`
-	AzureadOid sql.NullString `json:"azuread_oid"`
+	Upn        string      `json:"upn"`
+	Fullname   string      `json:"fullname"`
+	AzureadOid null.String `json:"azuread_oid"`
 }
 
 type NewAzureADUserRow struct {
 	Upn             string              `json:"upn"`
 	Fullname        string              `json:"fullname"`
-	AzureadOid      sql.NullString      `json:"azuread_oid"`
+	AzureadOid      null.String         `json:"azuread_oid"`
 	PermissionLevel UserPermissionLevel `json:"permission_level"`
 }
 
@@ -654,8 +662,8 @@ type NewDeviceParams struct {
 	Name            string         `json:"name"`
 	HwDevID         string         `json:"hw_dev_id"`
 	OperatingSystem string         `json:"operating_system"`
-	AzureDid        sql.NullString `json:"azure_did"`
-	EnrolledBy      sql.NullString `json:"enrolled_by"`
+	AzureDid        null.String    `json:"azure_did"`
+	EnrolledBy      null.String    `json:"enrolled_by"`
 }
 
 // TODO: Insert or Update
@@ -703,8 +711,8 @@ type NewDeviceReplacingExistingParams struct {
 	Name            string         `json:"name"`
 	HwDevID         string         `json:"hw_dev_id"`
 	OperatingSystem string         `json:"operating_system"`
-	AzureDid        sql.NullString `json:"azure_did"`
-	EnrolledBy      sql.NullString `json:"enrolled_by"`
+	AzureDid        null.String    `json:"azure_did"`
+	EnrolledBy      null.String    `json:"enrolled_by"`
 }
 
 func (q *Queries) NewDeviceReplacingExisting(ctx context.Context, arg NewDeviceReplacingExistingParams) error {

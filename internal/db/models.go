@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/mattrax/Mattrax/pkg/null"
 )
 
 type DeviceState string
@@ -80,16 +82,16 @@ type Device struct {
 	State            DeviceState    `json:"state"`
 	EnrollmentType   EnrollmentType `json:"enrollment_type"`
 	Name             string         `json:"name"`
-	Description      sql.NullString `json:"description"`
+	Description      null.String    `json:"description"`
 	Model            string         `json:"model"`
 	HwDevID          string         `json:"hw_dev_id"`
 	OperatingSystem  string         `json:"operating_system"`
-	AzureDid         sql.NullString `json:"azure_did"`
+	AzureDid         null.String    `json:"azure_did"`
 	NodecacheVersion string         `json:"nodecache_version"`
 	Lastseen         time.Time      `json:"lastseen"`
 	LastseenStatus   int32          `json:"lastseen_status"`
 	EnrolledAt       time.Time      `json:"enrolled_at"`
-	EnrolledBy       sql.NullString `json:"enrolled_by"`
+	EnrolledBy       null.String    `json:"enrolled_by"`
 }
 
 type DeviceCache struct {
@@ -156,8 +158,8 @@ type Setting struct {
 type User struct {
 	Upn             string              `json:"upn"`
 	Fullname        string              `json:"fullname"`
-	Password        sql.NullString      `json:"password"`
-	MfaToken        sql.NullString      `json:"mfa_token"`
-	AzureadOid      sql.NullString      `json:"azuread_oid"`
+	Password        null.String         `json:"password"`
+	MfaToken        null.String         `json:"mfa_token"`
+	AzureadOid      null.String         `json:"azuread_oid"`
 	PermissionLevel UserPermissionLevel `json:"permission_level"`
 }

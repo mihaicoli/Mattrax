@@ -3,11 +3,12 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/mattrax/Mattrax/internal/db"
+	"github.com/mattrax/Mattrax/pkg/null"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gorilla/mux"
 	mattrax "github.com/mattrax/Mattrax/internal"
@@ -36,28 +37,31 @@ func Users(srv *mattrax.Server) http.HandlerFunc {
 			}
 			return
 		} else if r.Method == http.MethodPost {
-			fmt.Println("here")
-
 			var cmd CreateUserRequest
 			if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
-				fmt.Println(err)
+				log.Printf("[JsonDecode Error]: %s\n", err)
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-
-			fmt.Println(cmd)
 
 			if cmd.Upn == "" || cmd.Fullname == "" {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 
+			passwordHash, err := bcrypt.GenerateFromPassword([]byte(cmd.Password), 15)
+			if err != nil {
+				log.Printf("[BcryptGenerateFromPassword Error]: %s\n", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
 			if err := srv.DB.CreateUser(r.Context(), db.CreateUserParams{
 				Upn:      cmd.Upn,
 				Fullname: cmd.Fullname,
-				Password: sql.NullString{
+				Password: null.String{
 					Valid:  true,
-					String: cmd.Password,
+					String: string(passwordHash),
 				},
 			}); err != nil {
 				log.Printf("[CreateUser Error]: %s\n", err)

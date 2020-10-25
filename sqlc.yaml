@@ -7,3 +7,7 @@ packages:
     engine: "postgresql"
     emit_json_tags: true
     emit_prepared_queries: true
+overrides:
+  - go_type: "github.com/mattrax/Mattrax/pkg/null.String"
+    db_type: "text"
+    nullable: true

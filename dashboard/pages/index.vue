@@ -35,7 +35,6 @@ import Vue from 'vue'
 
 export default Vue.extend({
   layout: 'dashboard',
-  middleware: ['auth'],
   meta: {
     breadcrumb: [{ name: 'Dashboard' }],
   },

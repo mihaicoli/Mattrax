@@ -42,9 +42,15 @@ func RequireAuthentication(srv *mattrax.Server) mux.MiddlewareFunc {
 				return
 			}
 
-			if _, err := srv.Auth.Token(authorizationHeader[1]); err != nil {
+			claims, err := srv.Auth.Token(authorizationHeader[1])
+			if err != nil {
 				log.Printf("[Authentication Error]: %s\n", err)
 				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			if claims.BasicClaims.Audience != "dashboard" {
+				w.WriteHeader(http.StatusForbidden)
 				return
 			}
 

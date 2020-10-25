@@ -112,10 +112,11 @@ func (as Service) Token(rawToken string) (AuthClaims, error) {
 }
 
 // IssueToken creates a new token from claims
-func (as Service) IssueToken(claims AuthClaims) (string, BasicClaims, error) {
+func (as Service) IssueToken(audience string, claims AuthClaims) (string, BasicClaims, error) {
 	var now = time.Now()
 	claims.BasicClaims = BasicClaims{
 		Issuer:   as.issuer,
+		Audience: audience,
 		IssuedAt: jwt.NewNumericDate(now),
 		Expiry:   jwt.NewNumericDate(now.Add(time.Hour)),
 	}

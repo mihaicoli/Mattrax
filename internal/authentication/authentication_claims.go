@@ -5,6 +5,7 @@ import "gopkg.in/square/go-jose.v2/jwt"
 // BasicClaims contains the generic JWT claims. These are shared between internal and externally issued tokens.
 type BasicClaims struct {
 	Issuer   string           `json:"iss"`
+	Audience string           `json:"aud"`
 	IssuedAt *jwt.NumericDate `json:"iat"`
 	Expiry   *jwt.NumericDate `json:"exp"`
 }
@@ -22,7 +23,6 @@ type AuthClaims struct {
 
 // MicrosoftSpecificAuthClaims has the claims for Microsoft AzureAD authentication tokens.
 type MicrosoftSpecificAuthClaims struct {
-	Audience          string `json:"aud,omitempty"`
 	ObjectID          string `json:"oid,omitempty"`
 	UserPrincipalName string `json:"upn,omitempty"`
 	TenantID          string `json:"tid,omitempty"`

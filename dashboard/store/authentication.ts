@@ -9,16 +9,17 @@ interface UserInformation {
   name?: string
   upn?: string
   org?: string
+  aud?: string
 }
 
 interface State {
   authToken: string
-  user: UserInformation
+  user: UserInformation | null
 }
 
 export const state = (): State => ({
   authToken: sessionStorage.getItem('authToken') || '',
-  user: {},
+  user: null,
 })
 
 export const mutations = {
@@ -26,7 +27,7 @@ export const mutations = {
     state.authToken = authToken
   },
 
-  setUserInformation(state: State, user: any) {
+  setUserInformation(state: State, user: UserInformation | null) {
     state.user = user
   },
 }
@@ -58,6 +59,7 @@ export const actions = {
         name: claims.name,
         upn: claims.sub,
         org: claims.org,
+        aud: claims.aud,
       }
 
       context.commit('setUserInformation', userInfo)
@@ -82,6 +84,7 @@ export const actions = {
           const data = await res.json()
           sessionStorage.setItem('authToken', data.token)
           context.commit('setAuthToken', data.token)
+          context.dispatch('populateUserInfomation')
           resolve()
         })
         .catch((err) => {

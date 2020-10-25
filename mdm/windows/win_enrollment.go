@@ -11,6 +11,7 @@ import (
 	mattrax "github.com/mattrax/Mattrax/internal"
 	"github.com/mattrax/Mattrax/internal/db"
 	"github.com/mattrax/Mattrax/pkg"
+	"github.com/mattrax/Mattrax/pkg/null"
 	"github.com/mattrax/Mattrax/pkg/soap"
 	wap "github.com/mattrax/Mattrax/pkg/wap_provisioning_doc"
 	"github.com/mattrax/xml"
@@ -125,7 +126,7 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			aadUser, err := srv.DB.NewAzureADUser(r.Context(), db.NewAzureADUserParams{
 				Upn:        authClaims.Subject,
 				Fullname:   authClaims.Name,
-				AzureadOid: sql.NullString{authClaims.MicrosoftSpecificAuthClaims.ObjectID, true},
+				AzureadOid: null.String{authClaims.MicrosoftSpecificAuthClaims.ObjectID, true},
 			})
 			if err != nil {
 				log.Error().Str("upn", authClaims.Subject).Str("oid", authClaims.MicrosoftSpecificAuthClaims.ObjectID).Err(err).Msg("error importing AzureAD user")
@@ -173,8 +174,8 @@ func Enrollment(srv *mattrax.Server) http.HandlerFunc {
 			Name:            cmd.GetAdditionalContextItem("DeviceName"),
 			HwDevID:         cmd.GetAdditionalContextItem("HWDevID"),
 			OperatingSystem: cmd.GetAdditionalContextItem("OSVersion"),
-			EnrolledBy:      sql.NullString{user.Upn, true},
-			AzureDid:        sql.NullString{authClaims.MicrosoftSpecificAuthClaims.DeviceID, authClaims.MicrosoftSpecificAuthClaims.DeviceID != ""},
+			EnrolledBy:      null.String{user.Upn, true},
+			AzureDid:        null.String{authClaims.MicrosoftSpecificAuthClaims.DeviceID, authClaims.MicrosoftSpecificAuthClaims.DeviceID != ""},
 		}
 
 		var certStore = "User"

@@ -12,6 +12,25 @@
   </div>
 </template>
 
+<script lang="ts">
+import Vue from 'vue'
+
+export default Vue.extend({
+  middleware: ['auth', 'administrators-only'],
+  updated() {
+    if (
+      this.$store.state.dashboard.error !== null &&
+      this.$store.state.dashboard.error.name === 'AuthError'
+    ) {
+      this.$store
+        .dispatch('authentication/logout')
+        .then(() => this.$router.push('/login'))
+        .catch(console.error)
+    }
+  },
+})
+</script>
+
 <style>
 @import url('https://fonts.googleapis.com/css?family=Raleway');
 
@@ -28,7 +47,6 @@ body {
   font-weight: 300;
   height: 100vh;
   overflow: hidden;
-  /* background-color:#f9f1f1; */
   background-color: #f2f2f2;
 }
 
@@ -98,6 +116,10 @@ main {
   display: inline-block;
   vertical-align: middle;
   line-height: normal;
+}
+
+.panel-body {
+  padding: 5px;
 }
 
 .subtitley {

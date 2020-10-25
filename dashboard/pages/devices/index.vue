@@ -3,6 +3,7 @@
   <div v-else>
     <h1>Devices</h1>
     <div class="filter-panel">
+      <button @click="$router.push('/enroll')">Enroll Device</button>
       <input type="text" placeholder="Search..." disabled />
     </div>
     <TableView :headings="['Name', 'Owner', 'Model', 'Groups']">
@@ -37,7 +38,6 @@ import Vue from 'vue'
 
 export default Vue.extend({
   layout: 'dashboard',
-  middleware: ['auth'],
   data() {
     return {
       loading: true,
